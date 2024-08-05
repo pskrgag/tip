@@ -12,12 +12,12 @@ enum Value {
     Number(i64),
     Pointer(Pointer),
     Function(FunctionPoiner),
-    Record(HashMap<String, Pointer>),
+    Record(HashMap<Indentifier, Pointer>),
     Null,
 }
 
 #[derive(Default)]
-struct Env(LinkedList<HashMap<String, Pointer>>);
+struct Env(LinkedList<HashMap<Indentifier, Pointer>>);
 
 #[derive(Default)]
 struct Store(Vec<Value>);
@@ -37,20 +37,20 @@ impl Env {
         self.0.pop_back();
     }
 
-    fn map_var(&mut self, name: String, dts: Pointer) {
+    fn map_var(&mut self, name: Indentifier, dts: Pointer) {
         self.0
             .back_mut()
-            .expect(format!("use of undeclared variable {name}").as_str())
+            .expect(format!("use of undeclared variable {:?}", name).as_str())
             .insert(name, dts);
     }
 
-    pub fn maybe_var(&self, name: &String) -> Option<Pointer> {
+    pub fn maybe_var(&self, name: &Indentifier) -> Option<Pointer> {
         self.0.back().unwrap().get(name).copied()
     }
 
-    pub fn var(&self, name: &String) -> Pointer {
+    pub fn var(&self, name: &Indentifier) -> Pointer {
         self.maybe_var(name)
-            .expect(format!("Cannot find varible {name}").as_str())
+            .expect(format!("Cannot find varible {:?}", name).as_str())
     }
 }
 
@@ -115,7 +115,7 @@ impl<'a> Interpreter<'a> {
 
     fn exec_lhs_expr(&mut self, e: &Box<Expression>) -> Value {
         match e.as_ref() {
-            Expression::Indentifier(x) => Value::Pointer(self.env.var(x.id())),
+            Expression::Indentifier(x) => Value::Pointer(self.env.var(x)),
             Expression::Deref(x) => {
                 let ptr = self.exec_lhs_expr(x);
 
@@ -129,7 +129,7 @@ impl<'a> Interpreter<'a> {
                 let e = self.exec_rhs_expr(expr);
 
                 if let Value::Record(x) = e {
-                    Value::Pointer(*x.get(id.id()).unwrap())
+                    Value::Pointer(*x.get(&id).unwrap())
                 } else {
                     panic!()
                 }
@@ -144,7 +144,7 @@ impl<'a> Interpreter<'a> {
                 if let Some(f) = self.ast.function(x.id()) {
                     Value::Function(f)
                 } else {
-                    self.store.read_value(self.env.var(x.id())).clone()
+                    self.store.read_value(self.env.var(x)).clone()
                 }
             }
             Expression::Number(x) => Value::Number(*x),
@@ -164,7 +164,7 @@ impl<'a> Interpreter<'a> {
                     BinaryOp::Eq => (e1 == e2) as i64,
                 })
             }
-            Expression::Addresof(x) => Value::Pointer(self.env.var(x.id())),
+            Expression::Addresof(x) => Value::Pointer(self.env.var(x)),
             Expression::Deref(x) => {
                 let ptr = self.exec_rhs_expr(x);
 
@@ -176,6 +176,7 @@ impl<'a> Interpreter<'a> {
             }
             Expression::Call(name, params) => {
                 let res = self.exec_rhs_expr(name);
+
                 let f = if let Value::Function(f) = res {
                     f
                 } else {
@@ -200,7 +201,7 @@ impl<'a> Interpreter<'a> {
                         let val = self.exec_rhs_expr(&x.expr);
                         let ptr = self.store.new_var(val);
 
-                        (x.id.id().clone(), ptr)
+                        (x.id.clone(), ptr)
                     })
                     .collect::<HashMap<_, _>>(),
             ),
@@ -217,7 +218,7 @@ impl<'a> Interpreter<'a> {
                 let e = self.exec_rhs_expr(x);
 
                 if let Value::Record(x) = e {
-                    self.store.read_value(*x.get(id.id()).unwrap()).clone()
+                    self.store.read_value(*x.get(id).unwrap()).clone()
                 } else {
                     panic!("Wtf {:?} {:?}", e, x)
                 }
@@ -249,7 +250,7 @@ impl<'a> Interpreter<'a> {
                 Expression::Indentifier(x) => {
                     println!(
                         "{:?}",
-                        self.val_to_str(self.store.read_value(self.env.var(x.id())))
+                        self.val_to_str(self.store.read_value(self.env.var(x)))
                     )
                 }
                 _ => {
@@ -300,14 +301,14 @@ impl<'a> Interpreter<'a> {
             for (name, val) in std::iter::zip(p.iter(), args.into_iter()) {
                 let var = self.store.new_var(val);
 
-                self.env.map_var(name.id().clone(), var)
+                self.env.map_var(name.clone(), var)
             }
         }
 
         for i in f.locals() {
             for i in i {
                 let var = self.store.new_var(Value::Undefined);
-                self.env.map_var(i.id().clone(), var);
+                self.env.map_var(i.clone(), var);
             }
         }
 
@@ -325,9 +326,9 @@ impl<'a> Interpreter<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::fs;
-    use regex::Regex;
     use lalrpop_util::lalrpop_mod;
+    use regex::Regex;
+    use std::fs;
 
     lalrpop_mod!(pub tip);
 

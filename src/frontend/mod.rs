@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 #[derive(Debug)]
 pub struct Ast(Vec<Box<Function>>);
 
@@ -6,7 +8,7 @@ pub fn append<T>(mut data: Vec<T>, t: T) -> Vec<T> {
     data
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Indentifier(String);
 
 #[derive(Debug, Clone)]
