@@ -3,6 +3,39 @@ use crate::frontend::*;
 
 grammar;
 
+match {
+  "+",
+  "-",
+  "*",
+  "/",
+  "(",
+  ")",
+  ".",
+  "&",
+  "{",
+  "}",
+  ";",
+  ",",
+  "=",
+  "==",
+  ">",
+  ":",
+  "var",
+  "if",
+  "while",
+  "output",
+  "input",
+  "return",
+  "else",
+  "alloc",
+  "null",
+  r"[a-zA-Z][a-zA-z_0-9]*",
+  r"[0-9]+",
+
+  r"//[^\n\r]*[\n\r]*" => { },
+  r"\s*" => { },
+}
+
 pub Tip: Ast = {
   <FuncList> => Ast::new(<>),
 }

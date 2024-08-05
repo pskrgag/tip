@@ -217,5 +217,21 @@ main(z) {
 "
         )
         .is_ok());
+
+        assert!(parse_program(
+            "
+twice(f, x) {
+  return f(f(x));
+}
+// Some comment
+inc(y) {
+  return y+1; // and here
+}
+main(z) { // and maybe here
+  return twice(inc, z);
+}
+"
+        )
+        .is_ok());
     }
 }
