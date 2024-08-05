@@ -1,3 +1,5 @@
+// TEST-INTERPRET: 2
+
 inc(v) {
    return v + 1;
 }

@@ -321,3 +321,38 @@ impl<'a> Interpreter<'a> {
         res
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::fs;
+    use regex::Regex;
+    use lalrpop_util::lalrpop_mod;
+
+    lalrpop_mod!(pub tip);
+
+    #[test]
+    fn test_programs() {
+        let r = Regex::new(r"// *TEST-INTERPRET: *(\d+)").unwrap();
+
+        for entry in fs::read_dir("./test_programs").unwrap() {
+            let path = entry.unwrap().path();
+            let code = fs::read_to_string(&path).unwrap();
+            let mut lines = code.lines();
+            let first_line = lines.next().unwrap();
+
+            if let Some(caps) = r.captures(first_line) {
+                let num = caps[1].parse::<i64>().unwrap();
+
+                let ast = tip::TipParser::new().parse(code.as_str()).unwrap();
+                let int = Interpreter::new(&ast);
+                let res = int.run();
+
+                if res != num {
+                    println!("Program {:?} produced wrong result", path);
+                    assert_eq!(res, num);
+                }
+            }
+        }
+    }
+}

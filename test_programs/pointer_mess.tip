@@ -1,3 +1,5 @@
+// TEST-INTERPRET: 10
+
 foo(x) {
 	*x = 100500;
 	return 0;

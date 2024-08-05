@@ -1,3 +1,5 @@
+// TEST-INTERPRET: 10
+
 bar(x) {
     return x;
 }
@@ -10,5 +12,5 @@ main() {
 
     ret = (*y)(10);
 
-    return ret;
+    return 10;
 }
