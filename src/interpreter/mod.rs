@@ -287,12 +287,12 @@ impl<'a> Interpreter<'a> {
             }
         }
 
-            for i in f.locals() {
-                for i in i {
+        for i in f.locals() {
+            for i in i {
                 let var = self.store.new_var(Value::Undefined);
                 self.env.map_var(i.id().clone(), var);
-                }
             }
+        }
 
         if let Some(body) = f.body() {
             self.exec_statement(body);
