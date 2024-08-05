@@ -40,7 +40,7 @@ impl Env {
     fn map_var(&mut self, name: Indentifier, dts: Pointer) {
         self.0
             .back_mut()
-            .expect(format!("use of undeclared variable {:?}", name).as_str())
+            .unwrap_or_else(|| panic!("use of undeclared variable {:?}", name))
             .insert(name, dts);
     }
 
@@ -50,7 +50,7 @@ impl Env {
 
     pub fn var(&self, name: &Indentifier) -> Pointer {
         self.maybe_var(name)
-            .expect(format!("Cannot find varible {:?}", name).as_str())
+            .unwrap_or_else(|| panic!("Cannot find varible {:?}", name))
     }
 }
 
@@ -113,8 +113,8 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn exec_lhs_expr(&mut self, e: &Box<Expression>) -> Value {
-        match e.as_ref() {
+    fn exec_lhs_expr(&mut self, e: &Expression) -> Value {
+        match e {
             Expression::Indentifier(x) => Value::Pointer(self.env.var(x)),
             Expression::Deref(x) => {
                 let ptr = self.exec_lhs_expr(x);
@@ -129,17 +129,17 @@ impl<'a> Interpreter<'a> {
                 let e = self.exec_rhs_expr(expr);
 
                 if let Value::Record(x) = e {
-                    Value::Pointer(*x.get(&id).unwrap())
+                    Value::Pointer(*x.get(id).unwrap())
                 } else {
                     panic!()
                 }
             }
-            _ => panic!("Ill formed program {:?}", e),
+            _ => panic!("{:?} Cannot be an lhs expression", e),
         }
     }
 
-    fn exec_rhs_expr(&mut self, e: &Box<Expression>) -> Value {
-        match e.as_ref() {
+    fn exec_rhs_expr(&mut self, e: &Expression) -> Value {
+        match e {
             Expression::Indentifier(x) => {
                 if let Some(f) = self.ast.function(x.id()) {
                     Value::Function(f)
@@ -171,7 +171,7 @@ impl<'a> Interpreter<'a> {
                 if let Value::Pointer(ptr) = ptr {
                     self.store.read_value(ptr).clone()
                 } else {
-                    panic!("Expected pointer, but value {:?}", ptr)
+                    panic!("Expected pointer, but got {:?}", ptr)
                 }
             }
             Expression::Call(name, params) => {
@@ -180,7 +180,7 @@ impl<'a> Interpreter<'a> {
                 let f = if let Value::Function(f) = res {
                     f
                 } else {
-                    panic!("");
+                    panic!("Expected fuction, but got {:?}", res);
                 };
 
                 let params = params
@@ -234,8 +234,8 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn exec_statement(&mut self, f: &Box<Statement>) {
-        match f.as_ref() {
+    fn exec_statement(&mut self, f: &Statement) {
+        match f {
             Statement::Assign(var, e) => {
                 let e = self.exec_rhs_expr(e);
                 let ptr = self.exec_lhs_expr(var);

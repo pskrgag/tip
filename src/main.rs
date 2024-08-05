@@ -1,3 +1,5 @@
+#![allow(clippy::vec_box)]
+
 use clap::Parser;
 use lalrpop_util::lalrpop_mod;
 use std::fs::read_to_string;

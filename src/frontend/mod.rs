@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 #[derive(Debug)]
 pub struct Ast(Vec<Box<Function>>);
 
@@ -99,7 +97,7 @@ impl Function {
         &self.body
     }
 
-    pub fn ret_e(&self) -> &Box<Expression> {
+    pub fn ret_e(&self) -> &Expression {
         &self.ret
     }
 
@@ -130,8 +128,8 @@ impl Ast {
         Some(FunctionPoiner(self.0.iter().position(|x| x.name().id() == name)?))
     }
 
-    pub fn function_by_index(&self, ptr: FunctionPoiner) -> Option<&Box<Function>> {
-        self.0.get(ptr.0)
+    pub fn function_by_index(&self, ptr: FunctionPoiner) -> Option<&Function> {
+        Some(self.0.get(ptr.0)?.as_ref())
     }
 }
 
