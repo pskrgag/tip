@@ -112,17 +112,24 @@ impl Record {
     }
 }
 
+#[derive(Clone, Default, Debug, Copy)]
+pub struct FunctionPoiner(pub(crate) usize);
+
 impl Ast {
     pub fn new(funcs: Vec<Box<Function>>) -> Self {
         Self(funcs)
     }
 
-    pub fn main(&self) -> Option<&Box<Function>> {
+    pub fn main(&self) -> Option<FunctionPoiner> {
         self.function(&"main".to_owned())
     }
 
-    pub fn function(&self, name: &String) -> Option<&Box<Function>> {
-        self.0.iter().find(|x| x.name().id() == name)
+    pub fn function(&self, name: &String) -> Option<FunctionPoiner> {
+        Some(FunctionPoiner(self.0.iter().position(|x| x.name().id() == name)?))
+    }
+
+    pub fn function_by_index(&self, ptr: FunctionPoiner) -> Option<&Box<Function>> {
+        self.0.get(ptr.0)
     }
 }
 

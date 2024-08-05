@@ -1,0 +1,13 @@
+inc(v) {
+   return v + 1;
+}
+
+apply(f,v) {
+   return f(v);
+}
+
+main() {
+    var n;
+    n = 1;
+    return apply(inc, n);
+}

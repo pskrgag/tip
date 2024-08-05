@@ -11,7 +11,7 @@ enum Value {
 
     Number(i64),
     Pointer(Pointer),
-    Function(Function),
+    Function(FunctionPoiner),
     Record(HashMap<String, Pointer>),
     Null,
 }
@@ -44,13 +44,12 @@ impl Env {
             .insert(name, dts);
     }
 
+    pub fn maybe_var(&self, name: &String) -> Option<Pointer> {
+        self.0.back().unwrap().get(name).copied()
+    }
+
     pub fn var(&self, name: &String) -> Pointer {
-        *self
-            .0
-            .back()
-            .unwrap()
-            .get(name)
-            .expect(format!("use of undeclared variable {name}").as_str())
+        self.maybe_var(name).expect(format!("Cannot find varible {name}").as_str())
     }
 }
 
@@ -86,9 +85,15 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    pub fn run(mut self) {
+    pub fn run(mut self) -> i64 {
         let main = self.ast.main().expect("No main function found");
-        self.run_func(main, vec![]);
+        let val = self.run_func(main, vec![]);
+
+        if let Value::Number(x) = val {
+            x
+        } else {
+            panic!("Main should only return ints!");
+        }
     }
 
     fn map_to_int(&self, v: Value) -> i64 {
@@ -134,7 +139,13 @@ impl<'a> Interpreter<'a> {
 
     fn exec_rhs_expr(&mut self, e: &Box<Expression>) -> Value {
         match e.as_ref() {
-            Expression::Indentifier(x) => self.store.read_value(self.env.var(x.id())).clone(),
+            Expression::Indentifier(x) => {
+                if let Some(f) = self.ast.function(x.id()) {
+                    Value::Function(f)
+                } else {
+                    self.store.read_value(self.env.var(x.id())).clone()
+                }
+            }
             Expression::Number(x) => Value::Number(*x),
             Expression::Binary(e1, op, e2) => {
                 let e1 = self.exec_rhs_expr(e1);
@@ -163,10 +174,20 @@ impl<'a> Interpreter<'a> {
                 }
             }
             Expression::Call(name, params) => {
-                let f = self
-                    .ast
-                    .function(name.id())
-                    .expect("Use of undefined function");
+                let f = if let Some(var) = self.env.maybe_var(name.id()) {
+                    let value = self.store.read_value(var).clone();
+
+                    if let Value::Function(f) = value {
+                        f
+                    } else {
+                        panic!("");
+                    }
+                } else {
+                    self.ast
+                        .function(name.id())
+                        .expect("Use of undefined function")
+                };
+
                 let params = params
                     .iter()
                     .map(|x| self.exec_rhs_expr(x))
@@ -276,7 +297,9 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn run_func(&mut self, f: &Function, args: Vec<Value>) -> Value {
+    fn run_func(&mut self, f: FunctionPoiner, args: Vec<Value>) -> Value {
+        let f = self.ast.function_by_index(f).unwrap();
+
         self.env.scope_begin();
 
         if let Some(p) = f.params() {

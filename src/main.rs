@@ -30,10 +30,12 @@ fn main() -> Result<()> {
         println!("{:?}", ast);
     }
 
-    if args.interpret {
+    let res = if args.interpret {
         let i = interpreter::Interpreter::new(&ast);
-        i.run();
-    }
+        i.run()
+    } else {
+        0
+    };
 
-    Ok(())
+    std::process::exit(res as i32)
 }
