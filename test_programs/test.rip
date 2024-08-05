@@ -1,0 +1,19 @@
+foo(x) {
+	*x = 100500;
+	return 0;
+}
+
+main() {
+	var x, y, z;
+
+	x = 10 + 10 * 10;
+	y = &x;
+
+	*y = 1234;
+
+	z = foo(y);
+	output x;
+	output z;
+
+	return 10;
+}

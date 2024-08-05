@@ -1,0 +1,131 @@
+use std::str::FromStr;
+use crate::frontend::*;
+
+grammar;
+
+pub Tip: Ast = {
+  <FuncList> => Ast::new(<>),
+}
+
+FuncList: Vec<Box<Function>> = {
+  <Function> => vec![<>],
+  <FuncList> <Function> => append(<>),
+}
+
+pub Function: Box<Function> = {
+  <Identifier> "(" <ArgList?> ")" "{" <LocalDecls*> <CompoundStatement?> <ReturnStatement> "}" => Function::new(<>),
+}
+
+LocalDecls: Vec<Indentifier> = {
+   "var" <ArgList> ";" => <>
+}
+
+ArgList : Vec<Indentifier> = {
+  <Identifier> => vec![<>],
+  <ArgList> "," <Identifier> => append(<>),
+}
+
+pub Statement: Box<Statement> = {
+   <Stmt> => Box::new(<>),
+}
+
+Stmt: Statement = {
+   <Expression> "=" <Expression> ";" => Statement::Assign(<>),
+   "output" <Expression> ";" => Statement::Output(<>),
+   "if" "(" <Expression> ")" "{" <CompoundStatement> "}" <Else?> => Statement::If(<>),
+   "while" "(" <Expression> ")" "{" <CompoundStatement> "}" => Statement::While(<>),
+}
+
+ReturnStatement: Box<Expression> = {
+   "return" <Expression> ";" => <>,
+}
+
+Else: Box<Statement> = {
+   "else" "{" <CompoundStatement> "}" => <>,
+}
+
+CompoundStatement: Box<Statement> = {
+   <CompoundStatementBody> => Box::new(Statement::Compound(<>)),
+}
+
+CompoundStatementBody: Vec<Box<Statement>> = {
+   <Statement> => vec![<>],
+   <CompoundStatementBody> <Statement> => append(<>),
+}
+
+pub Expression: Box<Expression> = {
+    <Expr> => Box::new(<>),
+}
+
+Expr: Expression = {
+    #[precedence(level="0")]
+    Atom,
+
+    #[precedence(level="1")] #[assoc(side="right")]
+    "*" <Expr> => Expression::Deref(Box::new(<>)),
+
+    #[precedence(level="2")] #[assoc(side="right")]
+    "&" <Identifier> => Expression::Addresof(<>),
+    <e:Expr> "." <i:Identifier> => Expression::Member(Box::new(e), i),
+
+    #[precedence(level="3")] #[assoc(side="left")]
+    <Identifier> "(" <CallList> ")" => Expression::Call(<>),
+
+    #[precedence(level="4")] #[assoc(side="left")]
+    <l:Expr> <o:CompareOp> <r:Expr> => Expression::Binary(Box::new(l), o, Box::new(r)),
+
+    #[precedence(level="5")] #[assoc(side="left")]
+    <l:Expr> <o:FactorOp> <r:Expr> => Expression::Binary(Box::new(l), o, Box::new(r)),
+
+    #[precedence(level="6")] #[assoc(side="left")]
+    <l:Expr> <o:ExprOp> <r:Expr> => Expression::Binary(Box::new(l), o, Box::new(r)),
+
+    #[precedence(level="7")]
+    "alloc" <Expr> => Expression::Alloc(Box::new(<>)),
+    "input" => Expression::Input,
+}
+
+RecordList: Vec<Record> = {
+  <Record> => vec![<>],
+  <RecordList> "," <Record> => append(<>),
+}
+
+Record: Record = {
+  <Identifier> ":" <Expression> => Record::new(<>),
+}
+
+CallList: Vec<Box<Expression>> = {
+  <Expression> => vec![<>],
+  <CallList> "," <Expression> => append(<>),
+}
+
+CompareOp: BinaryOp = {
+   ">" => BinaryOp::Gt,
+   "==" => BinaryOp::Eq,
+}
+
+ExprOp : BinaryOp = {
+   "+" => BinaryOp::Plus,
+   "-" => BinaryOp::Minus,
+}
+
+FactorOp : BinaryOp = {
+   "*" => BinaryOp::Mul,
+   "/" => BinaryOp::Div,
+}
+
+Atom: Expression = {
+    <Identifier> => Expression::Indentifier(<>),
+    <Num> => Expression::Number(<>),
+    "(" <Expr> ")" => <>,
+    "null" => Expression::Null,
+    "{" <RecordList> "}" => Expression::Record(<>),
+}
+
+Identifier: Indentifier = {
+    r"[a-zA-Z][a-zA-z_0-9]*" => Indentifier::new(<>.to_owned()),
+}
+
+Num: i64 = {
+    r"[0-9]+" => i64::from_str(<>).unwrap()
+}
