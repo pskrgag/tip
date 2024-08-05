@@ -1,0 +1,14 @@
+bar(x) {
+    return x;
+}
+
+main() {
+    var ret, x, y;
+
+    x = bar;
+    y = &x;
+
+    ret = (*y)(10);
+
+    return ret;
+}

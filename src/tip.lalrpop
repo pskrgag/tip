@@ -69,7 +69,7 @@ Expr: Expression = {
     <e:Expr> "." <i:Identifier> => Expression::Member(Box::new(e), i),
 
     #[precedence(level="3")] #[assoc(side="left")]
-    <Identifier> "(" <CallList> ")" => Expression::Call(<>),
+    <e:Expr> "(" <l:CallList> ")" => Expression::Call(Box::new(e), l),
 
     #[precedence(level="4")] #[assoc(side="left")]
     <l:Expr> <o:CompareOp> <r:Expr> => Expression::Binary(Box::new(l), o, Box::new(r)),

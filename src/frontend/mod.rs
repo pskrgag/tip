@@ -39,7 +39,7 @@ pub enum Expression {
     Binary(Box<Expression>, BinaryOp, Box<Expression>),
     Number(i64),
     Indentifier(Indentifier),
-    Call(Indentifier, Vec<Box<Expression>>),
+    Call(Box<Expression>, Vec<Box<Expression>>),
     Deref(Box<Expression>),
     Addresof(Indentifier),
     Alloc(Box<Expression>),
@@ -167,11 +167,12 @@ mod test {
 
         assert!(parse_expr("alloc 10").is_ok());
         assert!(parse_expr("&a").is_ok());
-        // assert!(parse_expr("*&a").is_ok());
+        // parse_expr("*&a").unwrap();
         assert!(parse_expr("&10").is_err());
 
         assert!(parse_expr("{f: 1, g: 2}").is_ok());
         assert!(parse_expr("i - 1").is_ok());
+        assert!(parse_expr("i-1").is_ok());
     }
 
     #[test]
@@ -179,7 +180,8 @@ mod test {
         assert!(parse_stmt("a = 2 + 2;").is_ok());
         assert!(parse_stmt("a = 2 + 2").is_err());
         assert!(parse_stmt("*a = 10;").is_ok());
-        parse_stmt("a=a-1;").unwrap();
+        assert!(parse_stmt("a=a-1;").is_ok());
+        assert!(parse_stmt("a=-1;").is_ok());
 
         assert!(parse_stmt("output 2 + 2 + 3;").is_ok());
         assert!(parse_stmt("if (a) { a = 10; }").is_ok());

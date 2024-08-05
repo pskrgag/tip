@@ -49,7 +49,8 @@ impl Env {
     }
 
     pub fn var(&self, name: &String) -> Pointer {
-        self.maybe_var(name).expect(format!("Cannot find varible {name}").as_str())
+        self.maybe_var(name)
+            .expect(format!("Cannot find varible {name}").as_str())
     }
 }
 
@@ -170,22 +171,15 @@ impl<'a> Interpreter<'a> {
                 if let Value::Pointer(ptr) = ptr {
                     self.store.read_value(ptr).clone()
                 } else {
-                    panic!()
+                    panic!("Expected pointer, but value {:?}", ptr)
                 }
             }
             Expression::Call(name, params) => {
-                let f = if let Some(var) = self.env.maybe_var(name.id()) {
-                    let value = self.store.read_value(var).clone();
-
-                    if let Value::Function(f) = value {
-                        f
-                    } else {
-                        panic!("");
-                    }
+                let res = self.exec_rhs_expr(name);
+                let f = if let Value::Function(f) = res {
+                    f
                 } else {
-                    self.ast
-                        .function(name.id())
-                        .expect("Use of undefined function")
+                    panic!("");
                 };
 
                 let params = params
