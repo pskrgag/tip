@@ -121,11 +121,15 @@ impl Ast {
     }
 
     pub fn main(&self) -> Option<FunctionPoiner> {
-        self.function(&"main".to_owned())
+        self.function("main")
     }
 
-    pub fn function(&self, name: &String) -> Option<FunctionPoiner> {
-        Some(FunctionPoiner(self.0.iter().position(|x| x.name().id() == name)?))
+    pub fn function<S: AsRef<str>>(&self, name: S) -> Option<FunctionPoiner> {
+        Some(FunctionPoiner(
+            self.0
+                .iter()
+                .position(|x| x.name().id().as_str() == name.as_ref())?,
+        ))
     }
 
     pub fn function_by_index(&self, ptr: FunctionPoiner) -> Option<&Function> {
