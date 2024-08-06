@@ -116,15 +116,18 @@ impl<'a> Interpreter<'a> {
     fn exec_lhs_expr(&mut self, e: &Expression) -> Value {
         match e {
             Expression::Indentifier(x) => Value::Pointer(self.env.var(x)),
-            Expression::Deref(x) => {
-                let ptr = self.exec_lhs_expr(x);
+            Expression::Unary(x) => match x.as_ref() {
+                Unary::Deref(x) => {
+                    let ptr = self.exec_lhs_expr(x);
 
-                if let Value::Pointer(ptr) = ptr {
-                    self.store.read_value(ptr).clone()
-                } else {
-                    panic!()
+                    if let Value::Pointer(ptr) = ptr {
+                        self.store.read_value(ptr).clone()
+                    } else {
+                        panic!()
+                    }
                 }
-            }
+                _ => panic!("Unary {:?} cannot be used as lhs", x),
+            },
             Expression::Member(expr, id) => {
                 let e = self.exec_rhs_expr(expr);
 
@@ -148,14 +151,14 @@ impl<'a> Interpreter<'a> {
                 }
             }
             Expression::Number(x) => Value::Number(*x),
-            Expression::Binary(e1, op, e2) => {
-                let e1 = self.exec_rhs_expr(e1);
-                let e2 = self.exec_rhs_expr(e2);
+            Expression::Binary(b) => {
+                let e1 = self.exec_rhs_expr(b.lhs.as_ref());
+                let e2 = self.exec_rhs_expr(b.rhs.as_ref());
 
                 let e1 = self.map_to_int(e1);
                 let e2 = self.map_to_int(e2);
 
-                Value::Number(match op {
+                Value::Number(match b.op {
                     BinaryOp::Mul => e1 * e2,
                     BinaryOp::Plus => e1 + e2,
                     BinaryOp::Div => e1 / e2,
@@ -164,18 +167,20 @@ impl<'a> Interpreter<'a> {
                     BinaryOp::Eq => (e1 == e2) as i64,
                 })
             }
-            Expression::Addresof(x) => Value::Pointer(self.env.var(x)),
-            Expression::Deref(x) => {
-                let ptr = self.exec_rhs_expr(x);
+            Expression::Unary(u) => match u.as_ref() {
+                Unary::Addressof(x) => Value::Pointer(self.env.var(x)),
+                Unary::Deref(x) => {
+                    let ptr = self.exec_rhs_expr(x);
 
-                if let Value::Pointer(ptr) = ptr {
-                    self.store.read_value(ptr).clone()
-                } else {
-                    panic!("Expected pointer, but got {:?}", ptr)
+                    if let Value::Pointer(ptr) = ptr {
+                        self.store.read_value(ptr).clone()
+                    } else {
+                        panic!("Expected pointer, but got {:?}", ptr)
+                    }
                 }
-            }
-            Expression::Call(name, params) => {
-                let res = self.exec_rhs_expr(name);
+            },
+            Expression::Call(call) => {
+                let res = self.exec_rhs_expr(call.call.as_ref());
 
                 let f = if let Value::Function(f) = res {
                     f
@@ -183,7 +188,7 @@ impl<'a> Interpreter<'a> {
                     panic!("Expected fuction, but got {:?}", res);
                 };
 
-                let params = params
+                let params = call.args
                     .iter()
                     .map(|x| self.exec_rhs_expr(x))
                     .collect::<Vec<_>>();
@@ -236,9 +241,9 @@ impl<'a> Interpreter<'a> {
 
     fn exec_statement(&mut self, f: &Statement) {
         match f {
-            Statement::Assign(var, e) => {
-                let e = self.exec_rhs_expr(e);
-                let ptr = self.exec_lhs_expr(var);
+            Statement::Assign(assign) => {
+                let e = self.exec_rhs_expr(assign.rhs.as_ref());
+                let ptr = self.exec_lhs_expr(assign.lhs.as_ref());
 
                 if let Value::Pointer(ptr) = ptr {
                     self.store.store_value(ptr, e);
@@ -258,13 +263,13 @@ impl<'a> Interpreter<'a> {
                     println!("{}", self.val_to_str(&v));
                 }
             },
-            Statement::If(guard, then, els) => {
-                let guard = self.exec_lhs_expr(guard);
+            Statement::If(iff) => {
+                let guard = self.exec_lhs_expr(iff.guard.as_ref());
 
                 if let Value::Number(x) = guard {
                     if x == 1 {
-                        self.exec_statement(then);
-                    } else if let Some(els) = els {
+                        self.exec_statement(iff.then.as_ref());
+                    } else if let Some(els) = iff.elsee.as_ref() {
                         self.exec_statement(els);
                     }
                 } else {

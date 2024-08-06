@@ -1,3 +1,7 @@
+use std::fmt::{Display, Formatter};
+
+pub mod ast_printer;
+
 #[derive(Debug)]
 pub struct Ast(Vec<Box<Function>>);
 
@@ -35,13 +39,44 @@ pub enum BinaryOp {
 }
 
 #[derive(Debug, Clone)]
+pub struct Binary {
+    pub lhs: Box<Expression>,
+    pub op: BinaryOp,
+    pub rhs: Box<Expression>,
+}
+
+#[derive(Debug, Clone)]
+pub enum Unary {
+    Deref(Box<Expression>),
+    Addressof(Indentifier),
+}
+
+#[derive(Debug, Clone)]
+pub struct Call {
+    pub call: Box<Expression>,
+    pub args: Vec<Box<Expression>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct If {
+    pub guard: Box<Expression>,
+    pub then: Box<Statement>,
+    pub elsee: Option<Box<Statement>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Assign {
+    pub lhs: Box<Expression>,
+    pub rhs: Box<Expression>,
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
-    Binary(Box<Expression>, BinaryOp, Box<Expression>),
+    Binary(Box<Binary>),
+    Unary(Box<Unary>),
     Number(i64),
     Indentifier(Indentifier),
-    Call(Box<Expression>, Vec<Box<Expression>>),
-    Deref(Box<Expression>),
-    Addresof(Indentifier),
+    Call(Box<Call>),
     Alloc(Box<Expression>),
     Record(Vec<Record>),
     Null,
@@ -52,10 +87,16 @@ pub enum Expression {
 #[derive(Debug, Clone)]
 pub enum Statement {
     Compound(Vec<Box<Statement>>),
-    Assign(Box<Expression>, Box<Expression>),
+    Assign(Box<Assign>),
     Output(Box<Expression>),
-    If(Box<Expression>, Box<Statement>, Option<Box<Statement>>),
+    If(Box<If>),
     While(Box<Expression>, Box<Statement>),
+}
+
+impl Binary {
+    pub fn new(lhs: Box<Expression>, op: BinaryOp, rhs: Box<Expression>) -> Box<Self> {
+        Box::new(Self { lhs, op, rhs })
+    }
 }
 
 impl Indentifier {
@@ -134,6 +175,25 @@ impl Ast {
 
     pub fn function_by_index(&self, ptr: FunctionPoiner) -> Option<&Function> {
         Some(self.0.get(ptr.0)?.as_ref())
+    }
+
+    pub fn functions(&self) -> &Vec<Box<Function>> {
+        &self.0
+    }
+}
+
+impl Display for BinaryOp {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let lex = match self {
+            Self::Gt => ">",
+            Self::Eq => "==",
+            Self::Mul => "*",
+            Self::Div => "/",
+            Self::Plus => "+",
+            Self::Minus => "-",
+        };
+
+        write!(f, "{lex}")
     }
 }
 

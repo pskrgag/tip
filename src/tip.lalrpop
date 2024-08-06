@@ -63,9 +63,9 @@ pub Statement: Box<Statement> = {
 }
 
 Stmt: Statement = {
-   <Expression> "=" <Expression> ";" => Statement::Assign(<>),
+   <l:Expression> "=" <r:Expression> ";" => Statement::Assign(Box::new(Assign { lhs: l, rhs: r })),
    "output" <Expression> ";" => Statement::Output(<>),
-   "if" "(" <Expression> ")" "{" <CompoundStatement> "}" <Else?> => Statement::If(<>),
+   "if" "(" <g:Expression> ")" "{" <t:CompoundStatement> "}" <e:Else?> => Statement::If(Box::new(If { guard: g, then: t, elsee: e })),
    "while" "(" <Expression> ")" "{" <CompoundStatement> "}" => Statement::While(<>),
 }
 
@@ -95,23 +95,23 @@ Expr: Expression = {
     Atom,
 
     #[precedence(level="1")] #[assoc(side="right")]
-    "*" <Expr> => Expression::Deref(Box::new(<>)),
+    "*" <Expr> => Expression::Unary(Box::new(Unary::Deref(Box::new(<>)))),
 
     #[precedence(level="2")] #[assoc(side="right")]
-    "&" <Identifier> => Expression::Addresof(<>),
+    "&" <Identifier> => Expression::Unary(Box::new(Unary::Addressof(<>))),
     <e:Expr> "." <i:Identifier> => Expression::Member(Box::new(e), i),
 
     #[precedence(level="3")] #[assoc(side="left")]
-    <e:Expr> "(" <l:CallList> ")" => Expression::Call(Box::new(e), l),
+    <e:Expr> "(" <l:CallList> ")" => Expression::Call(Box::new(Call { call: Box::new(e), args: l })),
 
     #[precedence(level="4")] #[assoc(side="left")]
-    <l:Expr> <o:CompareOp> <r:Expr> => Expression::Binary(Box::new(l), o, Box::new(r)),
+    <l:Expr> <o:CompareOp> <r:Expr> => Expression::Binary(Binary::new(Box::new(l), o, Box::new(r))),
 
     #[precedence(level="5")] #[assoc(side="left")]
-    <l:Expr> <o:FactorOp> <r:Expr> => Expression::Binary(Box::new(l), o, Box::new(r)),
+    <l:Expr> <o:FactorOp> <r:Expr> => Expression::Binary(Binary::new(Box::new(l), o, Box::new(r))),
 
     #[precedence(level="6")] #[assoc(side="left")]
-    <l:Expr> <o:ExprOp> <r:Expr> => Expression::Binary(Box::new(l), o, Box::new(r)),
+    <l:Expr> <o:ExprOp> <r:Expr> => Expression::Binary(Binary::new(Box::new(l), o, Box::new(r))),
 
     #[precedence(level="7")]
     "alloc" <Expr> => Expression::Alloc(Box::new(<>)),

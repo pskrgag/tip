@@ -9,6 +9,7 @@ lalrpop_mod!(pub tip);
 
 mod frontend;
 mod interpreter;
+mod analisys;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -29,7 +30,8 @@ fn main() -> Result<()> {
     let ast = tip::TipParser::new().parse(code_str.as_str()).unwrap();
 
     if args.dump_ast {
-        println!("{:?}", ast);
+        let printer = frontend::ast_printer::AstPriner::new(&ast);
+        printer.dump(&mut std::io::stdout());
     }
 
     let res = if args.interpret {

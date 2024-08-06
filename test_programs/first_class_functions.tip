@@ -1,0 +1,23 @@
+// TEST-INTERPRET: 20
+
+fun(a,b) {
+   return a + b;
+}
+
+f(a) {
+  return a;
+}
+
+apply(f) {
+  var a;
+
+  a = f(1234);
+  return fun;
+}
+
+main() {
+   var a;
+
+   a = apply(f);
+   return a(10,10);
+}
