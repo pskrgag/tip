@@ -61,7 +61,7 @@ impl<'a> AstPriner<'a> {
 
         if let Some(f) = f {
             for i in f {
-                s.push_str(format!("{}", i.id()).as_str());
+                s.push_str(i.id());
             }
         }
 
