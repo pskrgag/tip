@@ -1,0 +1,17 @@
+main() {
+  var a, b, c, n;
+
+  n = 10;
+
+  if (n) {
+    a = x;
+    b = f(y);
+    c = z;
+  } else {
+    a = g(1);
+    b = 2;
+    c = 1;
+  }
+
+  return r1;
+}

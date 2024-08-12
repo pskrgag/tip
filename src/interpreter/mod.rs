@@ -188,7 +188,8 @@ impl<'a> Interpreter<'a> {
                     panic!("Expected fuction, but got {:?}", res);
                 };
 
-                let params = call.args
+                let params = call
+                    .args
                     .iter()
                     .map(|x| self.exec_rhs_expr(x))
                     .collect::<Vec<_>>();
@@ -281,12 +282,18 @@ impl<'a> Interpreter<'a> {
                     self.exec_statement(i);
                 }
             }
-            Statement::While(guard, x) => loop {
-                let e = self.exec_rhs_expr(guard);
+            Statement::Function(_) => {
+                panic!("")
+            }
+            Statement::Return(_) => {
+                panic!("")
+            }
+            Statement::While(wl) => loop {
+                let e = self.exec_rhs_expr(&wl.guard);
 
                 if let Value::Number(e) = e {
                     if e == 1 {
-                        self.exec_statement(x);
+                        self.exec_statement(&wl.body);
                     } else {
                         break;
                     }
@@ -321,10 +328,13 @@ impl<'a> Interpreter<'a> {
             self.exec_statement(body);
         }
 
-        let res = self.exec_rhs_expr(f.ret_e());
-        self.env.scope_end();
-
-        res
+        if let Statement::Return(x) = f.ret_e() {
+            let res = self.exec_rhs_expr(x);
+            self.env.scope_end();
+            res
+        } else {
+            unreachable!()
+        }
     }
 }
 

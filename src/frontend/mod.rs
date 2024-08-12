@@ -1,16 +1,17 @@
 use std::fmt::{Display, Formatter};
 
 pub mod ast_printer;
+pub mod cfg;
 
 #[derive(Debug)]
-pub struct Ast(Vec<Box<Function>>);
+pub struct Ast(Vec<Box<Statement>>);
 
 pub fn append<T>(mut data: Vec<T>, t: T) -> Vec<T> {
     data.push(t);
     data
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Indentifier(String);
 
 #[derive(Debug, Clone)]
@@ -19,7 +20,7 @@ pub struct Function {
     params: Option<Vec<Indentifier>>,
     locals: Vec<Vec<Indentifier>>,
     body: Option<Box<Statement>>,
-    ret: Box<Expression>,
+    ret: Box<Statement>,
 }
 
 #[derive(Debug, Clone)]
@@ -57,11 +58,18 @@ pub struct Call {
     pub args: Vec<Box<Expression>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct If {
     pub guard: Box<Expression>,
     pub then: Box<Statement>,
     pub elsee: Option<Box<Statement>>,
+}
+
+
+#[derive(Clone)]
+pub struct While {
+    pub guard: Box<Expression>,
+    pub body: Box<Statement>,
 }
 
 #[derive(Debug, Clone)]
@@ -90,7 +98,9 @@ pub enum Statement {
     Assign(Box<Assign>),
     Output(Box<Expression>),
     If(Box<If>),
-    While(Box<Expression>, Box<Statement>),
+    While(While),
+    Function(Box<Function>),
+    Return(Box<Expression>),
 }
 
 impl Binary {
@@ -115,7 +125,7 @@ impl Function {
         params: Option<Vec<Indentifier>>,
         locals: Vec<Vec<Indentifier>>,
         body: Option<Box<Statement>>,
-        ret: Box<Expression>,
+        ret: Box<Statement>,
     ) -> Box<Self> {
         Box::new(Self {
             name,
@@ -138,7 +148,7 @@ impl Function {
         &self.body
     }
 
-    pub fn ret_e(&self) -> &Expression {
+    pub fn ret_e(&self) -> &Statement {
         &self.ret
     }
 
@@ -157,7 +167,11 @@ impl Record {
 pub struct FunctionPoiner(pub(crate) usize);
 
 impl Ast {
-    pub fn new(funcs: Vec<Box<Function>>) -> Self {
+    pub fn new(funcs: Vec<Box<Statement>>) -> Self {
+        funcs
+            .iter()
+            .for_each(|x| assert!(matches!(x.as_ref(), Statement::Function(_))));
+
         Self(funcs)
     }
 
@@ -166,19 +180,51 @@ impl Ast {
     }
 
     pub fn function<S: AsRef<str>>(&self, name: S) -> Option<FunctionPoiner> {
-        Some(FunctionPoiner(
-            self.0
-                .iter()
-                .position(|x| x.name().id().as_str() == name.as_ref())?,
-        ))
+        Some(FunctionPoiner(self.0.iter().position(|x| {
+            if let Statement::Function(x) = x.as_ref() {
+                x.name().id().as_str() == name.as_ref()
+            } else {
+                unreachable!()
+            }
+        })?))
     }
 
     pub fn function_by_index(&self, ptr: FunctionPoiner) -> Option<&Function> {
-        Some(self.0.get(ptr.0)?.as_ref())
+        let f = self.0.get(ptr.0)?;
+
+        if let Statement::Function(f) = f.as_ref() {
+            Some(f)
+        } else {
+            unreachable!()
+        }
     }
 
-    pub fn functions(&self) -> &Vec<Box<Function>> {
-        &self.0
+    pub fn functions(&self) -> Vec<&Function> {
+        self.0.iter().map(|x| {
+            if let Statement::Function(x) = x.as_ref() {
+                x.as_ref()
+            } else {
+                unreachable!()
+            }
+        }).collect()
+    }
+}
+
+impl std::fmt::Debug for Indentifier {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Indentifier({})", self.0)
+    }
+}
+
+impl std::fmt::Debug for If {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.guard)
+    }
+}
+
+impl std::fmt::Debug for While {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.guard)
     }
 }
 
@@ -213,7 +259,7 @@ mod test {
         tip::StatementParser::new().parse(code)
     }
 
-    fn parse_function(code: &str) -> Result<Box<Function>, ParseError<usize, Token<'_>, &str>> {
+    fn parse_function(code: &str) -> Result<Box<Statement>, ParseError<usize, Token<'_>, &str>> {
         tip::FunctionParser::new().parse(code)
     }
 

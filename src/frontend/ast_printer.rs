@@ -168,16 +168,26 @@ impl<'a> AstPriner<'a> {
                 self.dump_expression(assign.lhs.as_ref(), buffer);
                 self.dump_expression(assign.rhs.as_ref(), buffer);
             }
-            Statement::While(cond, compound) => {
+            Statement::While(wl) => {
                 let _guard = self.new_node("WhileStatement:", buffer);
 
-                self.dump_expression(cond.as_ref(), buffer);
-                self.dump_statement(compound.as_ref(), buffer);
+                self.dump_expression(wl.guard.as_ref(), buffer);
+                self.dump_statement(wl.body.as_ref(), buffer);
             }
             Statement::Output(expr) => {
                 let _guard = self.new_node("OutputStatement:", buffer);
 
                 self.dump_expression(expr.as_ref(), buffer);
+            }
+            Statement::Function(expr) => {
+                let _guard = self.new_node("OutputStatement:", buffer);
+
+                self.dump_function(expr, buffer);
+            }
+            Statement::Return(expr) => {
+                let _guard = self.new_node("ReturnStatement:", buffer);
+
+                self.dump_expression(expr, buffer);
             }
         }
     }
@@ -207,6 +217,6 @@ impl<'a> AstPriner<'a> {
         }
 
         let _g = self.new_node("ReturnStatement:", buffer);
-        self.dump_expression(f.ret_e(), buffer);
+        self.dump_statement(f.ret_e(), buffer);
     }
 }

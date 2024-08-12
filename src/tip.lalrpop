@@ -40,13 +40,13 @@ pub Tip: Ast = {
   <FuncList> => Ast::new(<>),
 }
 
-FuncList: Vec<Box<Function>> = {
+FuncList: Vec<Box<Statement>> = {
   <Function> => vec![<>],
   <FuncList> <Function> => append(<>),
 }
 
-pub Function: Box<Function> = {
-  <Identifier> "(" <ArgList?> ")" "{" <LocalDecls*> <CompoundStatement?> <ReturnStatement> "}" => Function::new(<>),
+pub Function: Box<Statement> = {
+  <Identifier> "(" <ArgList?> ")" "{" <LocalDecls*> <CompoundStatement?> <ReturnStatement> "}" => Box::new(Statement::Function(Function::new(<>))),
 }
 
 LocalDecls: Vec<Indentifier> = {
@@ -66,11 +66,11 @@ Stmt: Statement = {
    <l:Expression> "=" <r:Expression> ";" => Statement::Assign(Box::new(Assign { lhs: l, rhs: r })),
    "output" <Expression> ";" => Statement::Output(<>),
    "if" "(" <g:Expression> ")" "{" <t:CompoundStatement> "}" <e:Else?> => Statement::If(Box::new(If { guard: g, then: t, elsee: e })),
-   "while" "(" <Expression> ")" "{" <CompoundStatement> "}" => Statement::While(<>),
+   "while" "(" <e:Expression> ")" "{" <b:CompoundStatement> "}" => Statement::While(While { guard: e, body: b } ),
 }
 
-ReturnStatement: Box<Expression> = {
-   "return" <Expression> ";" => <>,
+ReturnStatement: Box<Statement> = {
+   "return" <Expression> ";" => Box::new(Statement::Return(<>)),
 }
 
 Else: Box<Statement> = {
