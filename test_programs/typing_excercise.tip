@@ -1,0 +1,18 @@
+fn(x) {
+   *x = 1010101;
+   return x;
+}
+
+main() {
+  var n, y, z, ret;
+
+  n = 10;
+  y = &n;
+  *y = 10;
+  z = &y;
+
+  ret = fn(y);
+  *ret = 1020;
+
+  return *ret;
+}

@@ -2,6 +2,7 @@ use std::fmt::{Display, Formatter};
 
 pub mod ast_printer;
 pub mod cfg;
+pub mod types;
 
 #[derive(Debug)]
 pub struct Ast(Vec<Box<Statement>>);
@@ -64,7 +65,6 @@ pub struct If {
     pub then: Box<Statement>,
     pub elsee: Option<Box<Statement>>,
 }
-
 
 #[derive(Clone)]
 pub struct While {
@@ -200,13 +200,16 @@ impl Ast {
     }
 
     pub fn functions(&self) -> Vec<&Function> {
-        self.0.iter().map(|x| {
-            if let Statement::Function(x) = x.as_ref() {
-                x.as_ref()
-            } else {
-                unreachable!()
-            }
-        }).collect()
+        self.0
+            .iter()
+            .map(|x| {
+                if let Statement::Function(x) = x.as_ref() {
+                    x.as_ref()
+                } else {
+                    unreachable!()
+                }
+            })
+            .collect()
     }
 }
 
@@ -240,6 +243,12 @@ impl Display for BinaryOp {
         };
 
         write!(f, "{lex}")
+    }
+}
+
+impl std::cmp::PartialEq<str> for Indentifier {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other.as_ref()
     }
 }
 

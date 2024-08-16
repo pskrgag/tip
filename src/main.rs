@@ -1,4 +1,5 @@
 #![allow(clippy::vec_box)]
+#![feature(box_into_inner)]
 
 use clap::Parser;
 use lalrpop_util::lalrpop_mod;
@@ -7,8 +8,10 @@ use std::io::Result;
 
 lalrpop_mod!(pub tip);
 
+mod analisys;
 mod frontend;
 mod interpreter;
+mod solvers;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -34,6 +37,12 @@ fn main() -> Result<()> {
 
     let code_str = read_to_string(args.prog)?;
     let ast = tip::TipParser::new().parse(code_str.as_str()).unwrap();
+
+    let res = analisys::analyze_ast(&ast);
+    if res.is_err() {
+        println!("Cannot proccess futher because of previous error");
+        std::process::exit(-1)
+    }
 
     if args.dump_ast {
         let printer = frontend::ast_printer::AstPriner::new(&ast);
