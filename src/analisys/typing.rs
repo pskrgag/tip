@@ -5,7 +5,9 @@ use crate::frontend::{
     Ast,
 };
 use crate::solvers::union::{UnionKey, UnionSolver};
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 impl UnionKey for TypeVariable {
     type Value = Option<Type>;
@@ -70,22 +72,20 @@ impl Enviroment {
     }
 }
 
-pub struct TypeAnalysis<'ast> {
+pub struct TypeAnalysis {
     solver: UnionSolver<TypeVariable>,
     env: Enviroment,
-    ast: &'ast Ast,
 }
 
-impl<'ast> TypeAnalysis<'ast> {
-    pub fn new(ast: &'ast Ast) -> Self {
+impl TypeAnalysis {
+    pub fn new() -> Self {
         Self {
             env: Enviroment::new(),
             solver: UnionSolver::new(),
-            ast,
         }
     }
 
-    fn infer(&mut self, s: &'ast Expression) -> Option<Type> {
+    fn infer(&mut self, s: &Expression) -> Option<Type> {
         match s {
             Expression::Indentifier(x) => {
                 let val = self.env.find(x).unwrap();
@@ -225,7 +225,7 @@ impl<'ast> TypeAnalysis<'ast> {
         }
     }
 
-    fn proccess_stmt(&mut self, s: &'ast Statement) -> AnalisysResult {
+    fn proccess_stmt(&mut self, s: &Statement) -> AnalisysResult {
         match s {
             Statement::Assign(assign) => {
                 let lhs = self.infer(assign.lhs.as_ref()).ok_or(())?;
@@ -284,7 +284,7 @@ impl<'ast> TypeAnalysis<'ast> {
         }
     }
 
-    fn proccess_function(&mut self, f: &'ast Function) -> AnalisysResult {
+    fn proccess_function(&mut self, f: &mut Function) -> AnalisysResult {
         for i in f.locals() {
             for local in i {
                 let key = self.solver.add(None);
@@ -315,7 +315,10 @@ impl<'ast> TypeAnalysis<'ast> {
             self.proccess_stmt(b)?;
         }
 
-        if f.name() == "main" {
+        f.type_params(|x| self.solver.get_value(self.env.find(x).unwrap()).unwrap());
+        f.type_local(|x| self.solver.get_value(self.env.find(x).unwrap()).unwrap());
+
+        let ret = if f.name() == "main" {
             if let Statement::Return(x) = f.ret_e() {
                 let t = self.infer(x).ok_or(())?;
 
@@ -323,6 +326,10 @@ impl<'ast> TypeAnalysis<'ast> {
                     println!("{:?} cannot be return type of 'main'", t);
                     Err(())
                 })?;
+
+                t
+            } else {
+                unreachable!()
             }
         } else {
             if let Statement::Return(x) = f.ret_e() {
@@ -330,20 +337,30 @@ impl<'ast> TypeAnalysis<'ast> {
 
                 if let Type::Function(_, y) = self.solver.get_value(function_key).unwrap() {
                     self.solver
-                        .update_value(function_key, Some(Type::Function(Box::new(t), y)));
+                        .update_value(function_key, Some(Type::Function(Box::new(t.clone()), y)));
                 } else {
                     panic!();
                 }
+
+                t
+            } else {
+                unreachable!()
             }
+        };
+
+        if let Type::Unbound(x) = ret {
+            f.type_retval(self.solver.get_value(x).unwrap());
+        } else {
+            f.type_retval(ret);
         }
 
         Ok(())
     }
 }
 
-impl<'ast> AstAnalisys for TypeAnalysis<'ast> {
-    fn run(&mut self) -> AnalisysResult {
-        for i in self.ast.functions() {
+impl AstAnalisys for TypeAnalysis {
+    fn run(&mut self, f: &mut Ast) -> AnalisysResult {
+        for i in f.functions_mut() {
             self.proccess_function(i)?;
         }
 

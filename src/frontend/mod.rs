@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use types::Type;
 
 pub mod ast_printer;
 pub mod cfg;
@@ -25,6 +26,7 @@ pub struct Function {
     locals: Vec<Vec<TypedIndentifier>>,
     body: Option<Box<Statement>>,
     ret: Box<Statement>,
+    ret_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -152,7 +154,28 @@ impl Function {
             locals,
             body,
             ret,
+            ret_type: None,
         })
+    }
+
+    pub fn type_retval(&mut self, t: Type) {
+        self.ret_type = Some(t);
+    }
+
+    pub fn type_params<F: Fn(&Indentifier) -> Type>(&mut self, f: F) {
+        if let Some(p) = self.params.as_mut() {
+            p.iter_mut().for_each(|x| x.change_type(f(x.id())));
+        }
+    }
+
+    pub fn ret_type(&self) -> Option<&Type> {
+        self.ret_type.as_ref()
+    }
+
+    pub fn type_local<F: Fn(&Indentifier) -> Type>(&mut self, f: F) {
+        for j in &mut self.locals {
+            j.iter_mut().for_each(|x| x.change_type(f(x.id())));
+        }
     }
 
     pub fn params(&self) -> &Option<Vec<TypedIndentifier>> {
@@ -230,6 +253,19 @@ impl Ast {
             })
             .collect()
     }
+
+    pub fn functions_mut(&mut self) -> Vec<&mut Function> {
+        self.0
+            .iter_mut()
+            .map(|x| {
+                if let Statement::Function(x) = x.as_mut() {
+                    x.as_mut()
+                } else {
+                    unreachable!()
+                }
+            })
+            .collect()
+    }
 }
 
 impl std::fmt::Debug for Indentifier {
@@ -240,7 +276,11 @@ impl std::fmt::Debug for Indentifier {
 
 impl std::fmt::Debug for TypedIndentifier {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Indentifier({:?}): type {:?}", self.0, self.1)
+        if let Some(t) = self.1.as_ref() {
+            write!(f, "{:?}: type {:?}", self.0, t)
+        } else {
+            write!(f, "{:?}: type 'Untyped'", self.0)
+        }
     }
 }
 

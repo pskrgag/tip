@@ -180,7 +180,7 @@ impl<'a> AstPriner<'a> {
                 self.dump_expression(expr.as_ref(), buffer);
             }
             Statement::Function(expr) => {
-                let _guard = self.new_node("OutputStatement:", buffer);
+                let _guard = self.new_node("FunctionStatement:", buffer);
 
                 self.dump_function(expr, buffer);
             }
@@ -195,9 +195,10 @@ impl<'a> AstPriner<'a> {
     fn dump_function<W: Write>(&self, f: &Function, buffer: &mut W) {
         let _guard = self.new_node(
             format!(
-                "Function {} ({}):",
+                "Function {} ({}): -> {:?}",
                 f.name.id(),
-                Self::format_function_args(f.params())
+                Self::format_function_args(f.params()),
+                f.ret_type()
             ),
             buffer,
         );

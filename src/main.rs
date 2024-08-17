@@ -36,9 +36,9 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     let code_str = read_to_string(args.prog)?;
-    let ast = tip::TipParser::new().parse(code_str.as_str()).unwrap();
+    let mut ast = tip::TipParser::new().parse(code_str.as_str()).unwrap();
 
-    let res = analisys::analyze_ast(&ast);
+    let res = analisys::analyze_ast(&mut ast);
     if res.is_err() {
         println!("Cannot proccess futher because of previous error");
         std::process::exit(-1)
