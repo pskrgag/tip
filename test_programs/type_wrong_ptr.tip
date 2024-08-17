@@ -1,0 +1,9 @@
+// TEST-ERROR: typing
+
+main() {
+    var n, r1;
+
+    r1 = 10;
+    *r1 = 1;
+    return r1;
+}
