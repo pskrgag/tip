@@ -341,9 +341,9 @@ impl<'a> Interpreter<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::tests::for_each_prog;
     use lalrpop_util::lalrpop_mod;
     use regex::Regex;
-    use std::fs;
 
     lalrpop_mod!(pub tip);
 
@@ -351,24 +351,17 @@ mod test {
     fn test_programs() {
         let r = Regex::new(r"// *TEST-INTERPRET: *(\d+)").unwrap();
 
-        for entry in fs::read_dir("./test_programs").unwrap() {
-            let path = entry.unwrap().path();
-            let code = fs::read_to_string(&path).unwrap();
-            let mut lines = code.lines();
-            let first_line = lines.next().unwrap();
+        for_each_prog(".", &r, |caps, code, path| {
+            let num = caps[1].parse::<i64>().unwrap();
 
-            if let Some(caps) = r.captures(first_line) {
-                let num = caps[1].parse::<i64>().unwrap();
+            let ast = tip::TipParser::new().parse(code.as_str()).unwrap();
+            let int = Interpreter::new(&ast);
+            let res = int.run();
 
-                let ast = tip::TipParser::new().parse(code.as_str()).unwrap();
-                let int = Interpreter::new(&ast);
-                let res = int.run();
-
-                if res != num {
-                    println!("Program {:?} produced wrong result", path);
-                    assert_eq!(res, num);
-                }
+            if res != num {
+                println!("Program {:?} produced wrong result", path);
+                assert_eq!(res, num);
             }
-        }
+        })
     }
 }

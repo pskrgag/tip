@@ -13,6 +13,9 @@ mod frontend;
 mod interpreter;
 mod solvers;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
