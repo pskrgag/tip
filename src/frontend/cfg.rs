@@ -145,11 +145,11 @@ impl<'ast> Cfg<'ast> {
             Statement::If(iff) => {
                 self.push_to_last_bb(f);
                 self.handle_if(iff);
-            },
+            }
             Statement::While(wl) => {
                 self.push_to_last_bb(f);
                 self.handle_while(&wl.body);
-            },
+            }
             _ => panic!("Unexpected stmt {:?}", f),
         }
     }

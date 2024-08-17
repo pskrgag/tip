@@ -63,7 +63,7 @@ impl<T: UnionKey> UnionSolver<T> {
 
     pub fn get_value(&self, t: T) -> T::Value {
         let t = self.parent(&t);
-        self.value(&t).value.clone()
+        self.value(t).value.clone()
     }
 
     pub fn update_value(&mut self, t: T, val: T::Value) {

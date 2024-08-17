@@ -5,9 +5,7 @@ use crate::frontend::{
     Ast,
 };
 use crate::solvers::union::{UnionKey, UnionSolver};
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 impl UnionKey for TypeVariable {
     type Value = Option<Type>;
@@ -134,12 +132,8 @@ impl TypeAnalysis {
                     if let Type::Pointer(x) = tp {
                         Some(x.as_ref().clone())
                     } else if let Type::Unbound(x) = tp {
-                        if let Some(t) = self.solver.get_value(x) {
-                            if let Type::Pointer(x) = t {
-                                Some(x.as_ref().clone())
-                            } else {
-                                panic!("Should not happen {:?}", tp);
-                            }
+                        if let Some(Type::Pointer(x)) = self.solver.get_value(x) {
+                            Some(x.as_ref().clone())
                         } else {
                             panic!("Should not happen {:?}", tp);
                         }
@@ -196,9 +190,8 @@ impl TypeAnalysis {
                 if args1.len() == args2.len() {
                     let v = std::iter::zip(args1, args2)
                         .map(|(x, y)| {
-                            self.unify(x, y).or_else(|_| {
+                            self.unify(x, y).map_err(|_| {
                                 println!("Cannot pass {:?} to {:?}", x, y);
-                                Err(())
                             })
                         })
                         .collect::<Vec<_>>();
@@ -231,9 +224,8 @@ impl TypeAnalysis {
                 let lhs = self.infer(assign.lhs.as_ref()).ok_or(())?;
                 let rhs = self.infer(assign.rhs.as_ref()).ok_or(())?;
 
-                self.unify(&lhs, &rhs).or_else(|_| {
+                self.unify(&lhs, &rhs).map_err(|_| {
                     println!("Cannot assign {:?} to {:?} in '{:?}'", rhs, lhs, s);
-                    Err(())
                 })?;
                 Ok(())
             }
@@ -247,9 +239,8 @@ impl TypeAnalysis {
             Statement::Output(x) => {
                 let t = self.infer(x).ok_or(())?;
 
-                self.unify(&t, &Type::Int).or_else(|_| {
+                self.unify(&t, &Type::Int).map_err(|_| {
                     println!("Cannot output type {:?} in '{:?}'", t, s);
-                    Err(())
                 })?;
 
                 Ok(())
@@ -257,9 +248,8 @@ impl TypeAnalysis {
             Statement::While(wh) => {
                 let t = self.infer(wh.guard.as_ref()).ok_or(())?;
 
-                self.unify(&t, &Type::Int).or_else(|_| {
+                self.unify(&t, &Type::Int).map_err(|_| {
                     println!("Cannot use type {:?} as while guard '{:?}'", t, s);
-                    Err(())
                 })?;
 
                 self.proccess_stmt(wh.body.as_ref())
@@ -267,9 +257,8 @@ impl TypeAnalysis {
             Statement::If(iff) => {
                 let t = self.infer(iff.guard.as_ref()).ok_or(())?;
 
-                self.unify(&t, &Type::Int).or_else(|_| {
+                self.unify(&t, &Type::Int).map_err(|_| {
                     println!("Cannot use type {:?} as while guard '{:?}'", t, s);
-                    Err(())
                 })?;
 
                 self.proccess_stmt(iff.then.as_ref())?;
@@ -321,31 +310,27 @@ impl TypeAnalysis {
         let ret = if f.name() == "main" {
             if let Statement::Return(x) = f.ret_e() {
                 let t = self.infer(x).ok_or(())?;
-
-                self.unify(&t, &Type::Int).or_else(|_| {
+                self.unify(&t, &Type::Int).map_err(|_| {
                     println!("{:?} cannot be return type of 'main'", t);
-                    Err(())
                 })?;
 
                 t
             } else {
                 unreachable!()
             }
-        } else {
-            if let Statement::Return(x) = f.ret_e() {
-                let t = self.infer(x).ok_or(())?;
+        } else if let Statement::Return(x) = f.ret_e() {
+            let t = self.infer(x).ok_or(())?;
 
-                if let Type::Function(_, y) = self.solver.get_value(function_key).unwrap() {
-                    self.solver
-                        .update_value(function_key, Some(Type::Function(Box::new(t.clone()), y)));
-                } else {
-                    panic!();
-                }
-
-                t
+            if let Type::Function(_, y) = self.solver.get_value(function_key).unwrap() {
+                self.solver
+                    .update_value(function_key, Some(Type::Function(Box::new(t.clone()), y)));
             } else {
-                unreachable!()
+                panic!();
             }
+
+            t
+        } else {
+            unreachable!()
         };
 
         if let Type::Unbound(x) = ret {
@@ -365,5 +350,39 @@ impl AstAnalisys for TypeAnalysis {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use lalrpop_util::lalrpop_mod;
+    use regex::Regex;
+    use std::fs;
+    use super::*;
+
+    lalrpop_mod!(pub tip);
+
+    #[test]
+    fn test_programs() {
+        let r = Regex::new(r"// *TEST-ERROR:.*typing").unwrap();
+
+        for entry in fs::read_dir("./test_programs").unwrap() {
+            let path = entry.unwrap().path();
+            let code = fs::read_to_string(&path).unwrap();
+            let mut lines = code.lines();
+            let first_line = lines.next().unwrap();
+
+            if let Some(_) = r.captures(first_line) {
+                let mut ast = tip::TipParser::new().parse(code.as_str()).unwrap();
+                let mut t = TypeAnalysis::new();
+
+                let res = t.run(&mut ast);
+
+                if res.is_ok() {
+                    println!("Expected typing error, but type anaisys passed");
+                    assert!(res.is_ok());
+                }
+            }
+        }
     }
 }

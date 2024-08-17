@@ -130,7 +130,7 @@ impl TypedIndentifier {
     }
 
     pub fn change_type(&mut self, t: types::Type) {
-        assert!(self.1 == None);
+        assert!(self.1.is_none());
 
         self.1 = Some(t)
     }
@@ -313,7 +313,7 @@ impl Display for BinaryOp {
 
 impl std::cmp::PartialEq<str> for Indentifier {
     fn eq(&self, other: &str) -> bool {
-        self.0 == other.as_ref()
+        self.0 == other
     }
 }
 
