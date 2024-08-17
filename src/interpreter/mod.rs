@@ -341,7 +341,7 @@ impl<'a> Interpreter<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::tests::for_each_prog;
+    use crate::tests::for_each_prog_parsed;
     use lalrpop_util::lalrpop_mod;
     use regex::Regex;
 
@@ -351,11 +351,10 @@ mod test {
     fn test_programs() {
         let r = Regex::new(r"// *TEST-INTERPRET: *(\d+)").unwrap();
 
-        for_each_prog(".", &r, |caps, code, path| {
+        for_each_prog_parsed(".", &r, |caps, ast, path| {
             let num = caps[1].parse::<i64>().unwrap();
 
-            let ast = tip::TipParser::new().parse(code.as_str()).unwrap();
-            let int = Interpreter::new(&ast);
+            let int = Interpreter::new(ast);
             let res = int.run();
 
             if res != num {

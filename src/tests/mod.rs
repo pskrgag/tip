@@ -1,8 +1,12 @@
+use crate::frontend::Ast;
+use lalrpop_util::lalrpop_mod;
 use regex::{Captures, Regex};
 use std::fs;
 use std::path::Path;
 
-pub fn for_each_prog<P: AsRef<str>, F: Fn(&Captures, &String, &Path)>(
+lalrpop_mod!(pub tip);
+
+pub fn for_each_prog_parsed<P: AsRef<str>, F: Fn(&Captures, &mut Ast, &Path)>(
     relative_path: P,
     r: &Regex,
     f: F,
@@ -20,7 +24,8 @@ pub fn for_each_prog<P: AsRef<str>, F: Fn(&Captures, &String, &Path)>(
         let first_line = lines.next().unwrap();
 
         if let Some(caps) = r.captures(first_line) {
-            f(&caps, &code, &path);
+            let mut ast = tip::TipParser::new().parse(code.as_str()).unwrap();
+            f(&caps, &mut ast, &path);
         }
     }
 }

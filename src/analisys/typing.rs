@@ -356,20 +356,16 @@ impl AstAnalisys for TypeAnalysis {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::tests::for_each_prog;
-    use lalrpop_util::lalrpop_mod;
+    use crate::tests::for_each_prog_parsed;
     use regex::Regex;
-
-    lalrpop_mod!(pub tip);
 
     #[test]
     fn test_error_programs() {
         let r = Regex::new(r"// *TEST-ERROR:.*typing").unwrap();
 
-        for_each_prog("./typing", &r, |_, code, path| {
-            let mut ast = tip::TipParser::new().parse(code.as_str()).unwrap();
+        for_each_prog_parsed("./typing", &r, |_, ast, path| {
             let mut analisys = TypeAnalysis::new();
-            let res = analisys.run(&mut ast);
+            let res = analisys.run(ast);
 
             if res.is_ok() {
                 println!("Program {:?} expected to fail type analisys", path);
