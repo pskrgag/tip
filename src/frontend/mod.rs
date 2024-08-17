@@ -15,11 +15,14 @@ pub fn append<T>(mut data: Vec<T>, t: T) -> Vec<T> {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Indentifier(String);
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct TypedIndentifier(Indentifier, Option<types::Type>);
+
 #[derive(Debug, Clone)]
 pub struct Function {
     name: Indentifier,
-    params: Option<Vec<Indentifier>>,
-    locals: Vec<Vec<Indentifier>>,
+    params: Option<Vec<TypedIndentifier>>,
+    locals: Vec<Vec<TypedIndentifier>>,
     body: Option<Box<Statement>>,
     ret: Box<Statement>,
 }
@@ -119,11 +122,27 @@ impl Indentifier {
     }
 }
 
+impl TypedIndentifier {
+    pub fn new_untyped(s: Indentifier) -> Self {
+        Self(s, None)
+    }
+
+    pub fn change_type(&mut self, t: types::Type) {
+        assert!(self.1 == None);
+
+        self.1 = Some(t)
+    }
+
+    pub fn id(&self) -> &Indentifier {
+        &self.0
+    }
+}
+
 impl Function {
     pub fn new(
         name: Indentifier,
-        params: Option<Vec<Indentifier>>,
-        locals: Vec<Vec<Indentifier>>,
+        params: Option<Vec<TypedIndentifier>>,
+        locals: Vec<Vec<TypedIndentifier>>,
         body: Option<Box<Statement>>,
         ret: Box<Statement>,
     ) -> Box<Self> {
@@ -136,7 +155,7 @@ impl Function {
         })
     }
 
-    pub fn params(&self) -> &Option<Vec<Indentifier>> {
+    pub fn params(&self) -> &Option<Vec<TypedIndentifier>> {
         &self.params
     }
 
@@ -152,7 +171,7 @@ impl Function {
         &self.ret
     }
 
-    pub fn locals(&self) -> &Vec<Vec<Indentifier>> {
+    pub fn locals(&self) -> &Vec<Vec<TypedIndentifier>> {
         &self.locals
     }
 }
@@ -216,6 +235,12 @@ impl Ast {
 impl std::fmt::Debug for Indentifier {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Indentifier({})", self.0)
+    }
+}
+
+impl std::fmt::Debug for TypedIndentifier {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Indentifier({:?}): type {:?}", self.0, self.1)
     }
 }
 

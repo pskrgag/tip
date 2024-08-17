@@ -288,7 +288,7 @@ impl<'ast> TypeAnalysis<'ast> {
         for i in f.locals() {
             for local in i {
                 let key = self.solver.add(None);
-                self.env.add(local.clone(), key);
+                self.env.add(local.id().clone(), key);
             }
         }
 
@@ -296,7 +296,7 @@ impl<'ast> TypeAnalysis<'ast> {
         if let Some(p) = f.params() {
             for i in p {
                 let key = self.solver.add(None);
-                self.env.add(i.clone(), key);
+                self.env.add(i.id().clone(), key);
 
                 v.push(Type::Unbound(key));
             }

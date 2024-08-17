@@ -49,13 +49,13 @@ pub Function: Box<Statement> = {
   <Identifier> "(" <ArgList?> ")" "{" <LocalDecls*> <CompoundStatement?> <ReturnStatement> "}" => Box::new(Statement::Function(Function::new(<>))),
 }
 
-LocalDecls: Vec<Indentifier> = {
+LocalDecls: Vec<TypedIndentifier> = {
    "var" <ArgList> ";" => <>
 }
 
-ArgList : Vec<Indentifier> = {
-  <Identifier> => vec![<>],
-  <ArgList> "," <Identifier> => append(<>),
+ArgList : Vec<TypedIndentifier> = {
+  <Identifier> => vec![TypedIndentifier::new_untyped(<>)],
+  <s:ArgList> "," <i:Identifier> => append(s, TypedIndentifier::new_untyped(i)),
 }
 
 pub Statement: Box<Statement> = {

@@ -313,14 +313,14 @@ impl<'a> Interpreter<'a> {
             for (name, val) in std::iter::zip(p.iter(), args.into_iter()) {
                 let var = self.store.new_var(val);
 
-                self.env.map_var(name.clone(), var)
+                self.env.map_var(name.id().clone(), var)
             }
         }
 
         for i in f.locals() {
             for i in i {
                 let var = self.store.new_var(Value::Undefined);
-                self.env.map_var(i.clone(), var);
+                self.env.map_var(i.id().clone(), var);
             }
         }
 
