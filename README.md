@@ -9,5 +9,5 @@ Things that now supported:
  - [x] Pretty AST-printer
  - [x] AST-based interpreter
  - [x] Per-function CFG dump to graphviz
- - [x] Basic type analisys (need records support and a bit of refctoring)
+ - [x] Basic type analisys (w/o polymorphism)
 

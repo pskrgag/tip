@@ -1,0 +1,10 @@
+// TEST-OK: typing
+
+main() {
+	var x;
+
+	x = alloc null;
+	**x = 10;
+
+	return 10;
+}

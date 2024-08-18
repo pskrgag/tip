@@ -1,3 +1,4 @@
+use crate::frontend::Indentifier;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub type TypeVariable = usize;
@@ -10,6 +11,7 @@ pub enum Type {
     Int,
     Function(Box<Type>, Vec<Type>),
     Pointer(Box<Type>),
+    Record(Vec<(Indentifier, Type)>),
 }
 
 impl Type {

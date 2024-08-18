@@ -34,39 +34,37 @@ impl UnionKey for TypeVariable {
 }
 
 #[derive(Debug, Clone)]
-enum Enviroment {
-    Leaf(HashMap<Indentifier, TypeVariable>),
-    Frame(HashMap<Indentifier, TypeVariable>, Box<Enviroment>),
+struct Enviroment {
+    global: HashMap<Indentifier, TypeVariable>,
+    local: HashMap<Indentifier, TypeVariable>,
 }
 
 impl Enviroment {
     pub fn new() -> Self {
-        Self::Leaf(HashMap::new())
-    }
-
-    pub fn add(&mut self, id: Indentifier, t: TypeVariable) {
-        match self {
-            Self::Leaf(x) => x.insert(id, t),
-            Self::Frame(x, _) => x.insert(id, t),
-        };
-    }
-
-    pub fn new_frame(&mut self) {
-        *self = Self::Frame(HashMap::new(), Box::new(self.clone()));
-    }
-
-    pub fn drop_frame(&mut self) {
-        match self {
-            Self::Leaf(_) => panic!(""),
-            Self::Frame(_, x) => *self = *x.clone(),
-        };
-    }
-
-    pub fn find(&self, id: &Indentifier) -> Option<TypeVariable> {
-        match self {
-            Self::Leaf(x) => x.get(id).cloned(),
-            Self::Frame(cur, x) => cur.get(id).cloned().or_else(|| x.find(id)),
+        Self {
+            global: HashMap::new(),
+            local: HashMap::new(),
         }
+    }
+
+    pub fn add_local(&mut self, id: Indentifier, t: TypeVariable) {
+        self.local.insert(id, t);
+    }
+
+    pub fn add_global(&mut self, id: Indentifier, t: TypeVariable) {
+        self.global.insert(id, t);
+    }
+
+    pub fn find_local(&self, id: &Indentifier) -> Option<TypeVariable> {
+        self.local.get(id).cloned()
+    }
+
+    pub fn find_glocal(&self, id: &Indentifier) -> Option<TypeVariable> {
+        self.global.get(id).cloned()
+    }
+
+    pub fn clear_local(&mut self) {
+        self.local.clear()
     }
 }
 
@@ -86,7 +84,7 @@ impl TypeAnalysis {
     fn infer(&mut self, s: &Expression) -> Option<Type> {
         match s {
             Expression::Indentifier(x) => {
-                let val = self.env.find(x).unwrap();
+                let val = self.env.find_local(x).unwrap();
                 self.solver.get_value(val).or(Some(Type::Unbound(val)))
             }
             Expression::Number(_) | Expression::Input => Some(Type::Int),
@@ -114,7 +112,7 @@ impl TypeAnalysis {
             }
             Expression::Unary(x) => match x.as_ref() {
                 Unary::Addressof(name) => {
-                    let tp = self.env.find(name).unwrap();
+                    let tp = self.env.find_local(name).unwrap();
                     let tp = self.solver.get_value(tp).unwrap();
                     Some(Type::Pointer(Box::new(tp)))
                 }
@@ -145,7 +143,7 @@ impl TypeAnalysis {
             Expression::Call(call) => {
                 let t = match call.call.as_ref() {
                     Expression::Indentifier(x) => {
-                        let var = self.env.find(x).unwrap();
+                        let var = self.env.find_glocal(x).unwrap();
                         self.solver.get_value(var).unwrap()
                     }
                     _ => self.infer(call.call.as_ref()).unwrap(),
@@ -168,7 +166,44 @@ impl TypeAnalysis {
 
                 self.solver.get_value(ret)
             }
-            _ => todo!(),
+            Expression::Record(rec) => {
+                let res = rec
+                    .iter()
+                    .map_while(|r| {
+                        if let Some(x) = self.infer(r.expr.as_ref()) {
+                            Some((r.id.clone(), x))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                if res.len() == rec.len() {
+                    Some(Type::Record(res))
+                } else {
+                    None
+                }
+            }
+            Expression::Alloc(x) => {
+                let t = self.infer(x)?;
+                Some(Type::Pointer(Box::new(t)))
+            }
+            Expression::Member(e, m) => {
+                let t = self.infer(e)?;
+
+                if let Type::Record(x) = t {
+                    let r = x.iter().find(|x| &x.0 == m).or_else(|| {
+                        println!("Unknown member");
+                        None
+                    })?;
+
+                    Some(r.1.clone())
+                } else {
+                    println!("Trying to access non-record type with '.'");
+                    None
+                }
+            }
+            Expression::Null => Some(Type::Unbound(self.solver.add(None))),
         }
     }
 
@@ -182,6 +217,17 @@ impl TypeAnalysis {
                 } else {
                     self.solver.unify_var_val(*x1, Some(t.clone()))
                 }
+            }
+            (Type::Record(x), Type::Record(y)) => {
+                for (l, r) in std::iter::zip(x, y) {
+                    if l.0 == r.0 {
+                        self.unify(&l.1, &r.1)?;
+                    } else {
+                        return Err(());
+                    }
+                }
+
+                Ok(())
             }
             (Type::Pointer(x1), Type::Pointer(x2)) => self.unify(x1, x2),
             (Type::Function(ret1, args1), Type::Function(ret2, args2)) => {
@@ -277,7 +323,7 @@ impl TypeAnalysis {
         for i in f.locals() {
             for local in i {
                 let key = self.solver.add(None);
-                self.env.add(local.id().clone(), key);
+                self.env.add_local(local.id().clone(), key);
             }
         }
 
@@ -285,7 +331,7 @@ impl TypeAnalysis {
         if let Some(p) = f.params() {
             for i in p {
                 let key = self.solver.add(None);
-                self.env.add(i.id().clone(), key);
+                self.env.add_local(i.id().clone(), key);
 
                 v.push(Type::Unbound(key));
             }
@@ -298,14 +344,22 @@ impl TypeAnalysis {
             v.clone(),
         )));
 
-        self.env.add(f.name().clone(), function_key);
+        self.env.add_global(f.name().clone(), function_key);
 
         if let Some(b) = f.body() {
             self.proccess_stmt(b)?;
         }
 
-        f.type_params(|x| self.solver.get_value(self.env.find(x).unwrap()).unwrap());
-        f.type_local(|x| self.solver.get_value(self.env.find(x).unwrap()).unwrap());
+        f.type_params(|x| {
+            self.solver
+                .get_value(self.env.find_local(x).unwrap())
+                .unwrap()
+        });
+        f.type_local(|x| {
+            self.solver
+                .get_value(self.env.find_local(x).unwrap())
+                .unwrap()
+        });
 
         let ret = if f.name() == "main" {
             if let Statement::Return(x) = f.ret_e() {
@@ -339,6 +393,8 @@ impl TypeAnalysis {
             f.type_retval(ret);
         }
 
+        self.env.clear_local();
+
         Ok(())
     }
 }
@@ -370,6 +426,21 @@ mod test {
             if res.is_ok() {
                 println!("Program {:?} expected to fail type analisys", path);
                 assert!(res.is_err());
+            }
+        })
+    }
+
+    #[test]
+    fn test_ok_programs() {
+        let r = Regex::new(r"// *TEST-OK:.*typing").unwrap();
+
+        for_each_prog_parsed("./typing", &r, |_, ast, path| {
+            let mut analisys = TypeAnalysis::new();
+            let res = analisys.run(ast);
+
+            if res.is_err() {
+                println!("Program {:?} expected to pass type analisys", path);
+                assert!(res.is_ok());
             }
         })
     }
