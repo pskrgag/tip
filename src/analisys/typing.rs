@@ -169,13 +169,7 @@ impl TypeAnalysis {
             Expression::Record(rec) => {
                 let res = rec
                     .iter()
-                    .map_while(|r| {
-                        if let Some(x) = self.infer(r.expr.as_ref()) {
-                            Some((r.id.clone(), x))
-                        } else {
-                            None
-                        }
-                    })
+                    .map_while(|r| self.infer(r.expr.as_ref()).map(|x| (r.id.clone(), x)))
                     .collect::<Vec<_>>();
 
                 if res.len() == rec.len() {

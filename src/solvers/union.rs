@@ -72,6 +72,7 @@ impl<T: UnionKey> UnionSolver<T> {
         self.update_val(&t.clone(), |x| x.value = val);
     }
 
+    #[cfg(test)]
     pub fn find(&self, t: T) -> T {
         let val = self.value(&t);
 
@@ -196,7 +197,6 @@ mod test {
 
     #[derive(Eq, PartialEq, Debug, Clone)]
     enum Type {
-        Var(TestVal),
         Int,
     }
 
