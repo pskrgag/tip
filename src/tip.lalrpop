@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use crate::frontend::*;
+use crate::loc;
 
 grammar;
 
@@ -36,6 +37,10 @@ match {
   r"\s*" => { },
 }
 
+Identifier: Indentifier = {
+    r"[a-zA-Z][a-zA-z_0-9]*" => Indentifier::new(<>.to_owned()),
+}
+
 pub Tip: Ast = {
   <FuncList> => Ast::new(<>),
 }
@@ -46,7 +51,8 @@ FuncList: Vec<Box<Statement>> = {
 }
 
 pub Function: Box<Statement> = {
-  <Identifier> "(" <ArgList?> ")" "{" <LocalDecls*> <CompoundStatement?> <ReturnStatement> "}" => Box::new(Statement::Function(Function::new(<>))),
+  <st: @R> <i:Identifier> "(" <a:ArgList?> ")" "{" <l:LocalDecls*> <c:CompoundStatement?> <r:ReturnStatement> "}" <ed: @L> =>
+     Box::new(Statement { kind: StatementKind::Function(Function::new(i, a, l, c, r)), loc: loc!(st, ed) } ),
 }
 
 LocalDecls: Vec<TypedIndentifier> = {
@@ -63,14 +69,21 @@ pub Statement: Box<Statement> = {
 }
 
 Stmt: Statement = {
-   <l:Expression> "=" <r:Expression> ";" => Statement::Assign(Box::new(Assign { lhs: l, rhs: r })),
-   "output" <Expression> ";" => Statement::Output(<>),
-   "if" "(" <g:Expression> ")" "{" <t:CompoundStatement> "}" <e:Else?> => Statement::If(Box::new(If { guard: g, then: t, elsee: e })),
-   "while" "(" <e:Expression> ")" "{" <b:CompoundStatement> "}" => Statement::While(While { guard: e, body: b } ),
+   <st: @R> <l:Expression> "=" <r:Expression> <ed: @L> ";" => 
+     Statement { kind: StatementKind::Assign(Box::new(Assign { lhs: l, rhs: r })), loc: loc!(st, ed) },
+
+   <st: @R> "output" <ex:Expression> ";" <ed: @L> => Statement { kind: StatementKind::Output(ex), loc: loc!(st, ed) },
+
+   <st: @R> "if" "(" <g:Expression> ")" "{" <t:CompoundStatement> "}" <e:Else?> <ed: @L> => 
+      Statement { kind:  StatementKind::If(Box::new(If { guard: g, then: t, elsee: e })), loc: loc!(st, ed) },
+
+   <st: @R> "while" "(" <e:Expression> ")" "{" <b:CompoundStatement> "}" <ed: @L> =>
+      Statement { kind: StatementKind::While(While { guard: e, body: b } ), loc: loc!(st, ed) }
 }
 
 ReturnStatement: Box<Statement> = {
-   "return" <Expression> ";" => Box::new(Statement::Return(<>)),
+   <st: @R> "return" <ex:Expression> ";" <ed: @L> => 
+      Box::new(Statement { kind:  StatementKind::Return(ex), loc: loc!(st, ed) })
 }
 
 Else: Box<Statement> = {
@@ -78,7 +91,7 @@ Else: Box<Statement> = {
 }
 
 CompoundStatement: Box<Statement> = {
-   <CompoundStatementBody> => Box::new(Statement::Compound(<>)),
+   <st: @L> <cc:CompoundStatementBody> <ed: @R> => Box::new( Statement { kind:  StatementKind::Compound(cc), loc: loc!(st, ed) } ),
 }
 
 CompoundStatementBody: Vec<Box<Statement>> = {
@@ -155,10 +168,6 @@ Atom: Expression = {
     "(" <Expr> ")" => <>,
     "null" => Expression::Null,
     "{" <RecordList> "}" => Expression::Record(<>),
-}
-
-Identifier: Indentifier = {
-    r"[a-zA-Z][a-zA-z_0-9]*" => Indentifier::new(<>.to_owned()),
 }
 
 Num: i64 = {

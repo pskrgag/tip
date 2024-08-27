@@ -241,8 +241,8 @@ impl<'a> Interpreter<'a> {
     }
 
     fn exec_statement(&mut self, f: &Statement) {
-        match f {
-            Statement::Assign(assign) => {
+        match &f.kind {
+            StatementKind::Assign(assign) => {
                 let e = self.exec_rhs_expr(assign.rhs.as_ref());
                 let ptr = self.exec_lhs_expr(assign.lhs.as_ref());
 
@@ -252,7 +252,7 @@ impl<'a> Interpreter<'a> {
                     panic!()
                 }
             }
-            Statement::Output(e) => match e.as_ref() {
+            StatementKind::Output(e) => match e.as_ref() {
                 Expression::Indentifier(x) => {
                     println!(
                         "{:?}",
@@ -264,7 +264,7 @@ impl<'a> Interpreter<'a> {
                     println!("{}", self.val_to_str(&v));
                 }
             },
-            Statement::If(iff) => {
+            StatementKind::If(iff) => {
                 let guard = self.exec_lhs_expr(iff.guard.as_ref());
 
                 if let Value::Number(x) = guard {
@@ -277,18 +277,18 @@ impl<'a> Interpreter<'a> {
                     panic!("");
                 }
             }
-            Statement::Compound(x) => {
+            StatementKind::Compound(x) => {
                 for i in x {
                     self.exec_statement(i);
                 }
             }
-            Statement::Function(_) => {
+            StatementKind::Function(_) => {
                 panic!("")
             }
-            Statement::Return(_) => {
+            StatementKind::Return(_) => {
                 panic!("")
             }
-            Statement::While(wl) => loop {
+            StatementKind::While(wl) => loop {
                 let e = self.exec_rhs_expr(&wl.guard);
 
                 if let Value::Number(e) = e {
@@ -328,8 +328,8 @@ impl<'a> Interpreter<'a> {
             self.exec_statement(body);
         }
 
-        if let Statement::Return(x) = f.ret_e() {
-            let res = self.exec_rhs_expr(x);
+        if let StatementKind::Return(ref x) = f.ret_e().kind {
+            let res = self.exec_rhs_expr(x.as_ref());
             self.env.scope_end();
             res
         } else {

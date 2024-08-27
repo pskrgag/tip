@@ -5,6 +5,9 @@ pub mod ast_printer;
 pub mod cfg;
 pub mod types;
 
+#[macro_use]
+pub mod source;
+
 #[derive(Debug)]
 pub struct Ast(Vec<Box<Statement>>);
 
@@ -98,7 +101,7 @@ pub enum Expression {
 }
 
 #[derive(Debug, Clone)]
-pub enum Statement {
+pub enum StatementKind {
     Compound(Vec<Box<Statement>>),
     Assign(Box<Assign>),
     Output(Box<Expression>),
@@ -106,6 +109,12 @@ pub enum Statement {
     While(While),
     Function(Box<Function>),
     Return(Box<Expression>),
+}
+
+#[derive(Debug, Clone)]
+pub struct Statement {
+    pub kind: StatementKind,
+    pub loc: source::SourceLoc,
 }
 
 impl Binary {
@@ -212,7 +221,7 @@ impl Ast {
     pub fn new(funcs: Vec<Box<Statement>>) -> Self {
         funcs
             .iter()
-            .for_each(|x| assert!(matches!(x.as_ref(), Statement::Function(_))));
+            .for_each(|x| assert!(matches!(x.kind, StatementKind::Function(_))));
 
         Self(funcs)
     }
@@ -223,7 +232,7 @@ impl Ast {
 
     pub fn function<S: AsRef<str>>(&self, name: S) -> Option<FunctionPoiner> {
         Some(FunctionPoiner(self.0.iter().position(|x| {
-            if let Statement::Function(x) = x.as_ref() {
+            if let StatementKind::Function(x) = &x.kind {
                 x.name().id().as_str() == name.as_ref()
             } else {
                 unreachable!()
@@ -234,7 +243,7 @@ impl Ast {
     pub fn function_by_index(&self, ptr: FunctionPoiner) -> Option<&Function> {
         let f = self.0.get(ptr.0)?;
 
-        if let Statement::Function(f) = f.as_ref() {
+        if let StatementKind::Function(f) = &f.kind {
             Some(f)
         } else {
             unreachable!()
@@ -245,7 +254,7 @@ impl Ast {
         self.0
             .iter()
             .map(|x| {
-                if let Statement::Function(x) = x.as_ref() {
+                if let StatementKind::Function(x) = &x.kind {
                     x.as_ref()
                 } else {
                     unreachable!()
@@ -258,7 +267,7 @@ impl Ast {
         self.0
             .iter_mut()
             .map(|x| {
-                if let Statement::Function(x) = x.as_mut() {
+                if let StatementKind::Function(x) = &mut x.kind {
                     x.as_mut()
                 } else {
                     unreachable!()

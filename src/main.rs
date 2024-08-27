@@ -9,6 +9,8 @@ use std::io::Result;
 lalrpop_mod!(pub tip);
 
 mod analisys;
+
+#[macro_use]
 mod frontend;
 mod interpreter;
 mod solvers;

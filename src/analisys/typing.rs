@@ -259,8 +259,8 @@ impl TypeAnalysis {
     }
 
     fn proccess_stmt(&mut self, s: &Statement) -> AnalisysResult {
-        match s {
-            Statement::Assign(assign) => {
+        match &s.kind {
+            StatementKind::Assign(assign) => {
                 let lhs = self.infer(assign.lhs.as_ref()).ok_or(())?;
                 let rhs = self.infer(assign.rhs.as_ref()).ok_or(())?;
 
@@ -269,15 +269,15 @@ impl TypeAnalysis {
                 })?;
                 Ok(())
             }
-            Statement::Compound(x) => {
+            StatementKind::Compound(x) => {
                 for i in x {
-                    self.proccess_stmt(i)?;
+                    self.proccess_stmt(i.as_ref())?;
                 }
 
                 Ok(())
             }
-            Statement::Output(x) => {
-                let t = self.infer(x).ok_or(())?;
+            StatementKind::Output(x) => {
+                let t = self.infer(x.as_ref()).ok_or(())?;
 
                 self.unify(&t, &Type::Int).map_err(|_| {
                     println!("Cannot output type {:?} in '{:?}'", t, s);
@@ -285,7 +285,7 @@ impl TypeAnalysis {
 
                 Ok(())
             }
-            Statement::While(wh) => {
+            StatementKind::While(wh) => {
                 let t = self.infer(wh.guard.as_ref()).ok_or(())?;
 
                 self.unify(&t, &Type::Int).map_err(|_| {
@@ -294,7 +294,7 @@ impl TypeAnalysis {
 
                 self.proccess_stmt(wh.body.as_ref())
             }
-            Statement::If(iff) => {
+            StatementKind::If(iff) => {
                 let t = self.infer(iff.guard.as_ref()).ok_or(())?;
 
                 self.unify(&t, &Type::Int).map_err(|_| {
@@ -309,7 +309,7 @@ impl TypeAnalysis {
                     Ok(())
                 }
             }
-            Statement::Function(_) | Statement::Return(_) => panic!("Wrong call"),
+            StatementKind::Function(_) | StatementKind::Return(_) => panic!("Wrong call"),
         }
     }
 
@@ -356,8 +356,8 @@ impl TypeAnalysis {
         });
 
         let ret = if f.name() == "main" {
-            if let Statement::Return(x) = f.ret_e() {
-                let t = self.infer(x).ok_or(())?;
+            if let StatementKind::Return(ref x) = f.ret_e().kind {
+                let t = self.infer(x.as_ref()).ok_or(())?;
                 self.unify(&t, &Type::Int).map_err(|_| {
                     println!("{:?} cannot be return type of 'main'", t);
                 })?;
@@ -366,8 +366,8 @@ impl TypeAnalysis {
             } else {
                 unreachable!()
             }
-        } else if let Statement::Return(x) = f.ret_e() {
-            let t = self.infer(x).ok_or(())?;
+        } else if let StatementKind::Return(ref x) = f.ret_e().kind {
+            let t = self.infer(x.as_ref()).ok_or(())?;
 
             if let Type::Function(_, y) = self.solver.get_value(function_key).unwrap() {
                 self.solver

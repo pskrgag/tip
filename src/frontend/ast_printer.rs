@@ -144,8 +144,8 @@ impl<'a> AstPriner<'a> {
     }
 
     fn dump_statement<W: Write>(&self, st: &Statement, buffer: &mut W) {
-        match st {
-            Statement::If(iff) => {
+        match &st.kind {
+            StatementKind::If(iff) => {
                 let _guard = self.new_node("IfStatement:", buffer);
 
                 self.dump_expression(iff.guard.as_ref(), buffer);
@@ -155,39 +155,39 @@ impl<'a> AstPriner<'a> {
                     self.dump_statement(elsee.as_ref(), buffer);
                 }
             }
-            Statement::Compound(stmts) => {
+            StatementKind::Compound(stmts) => {
                 let _guard = self.new_node("CompoundStatement:", buffer);
 
                 for i in stmts {
                     self.dump_statement(i.as_ref(), buffer);
                 }
             }
-            Statement::Assign(assign) => {
+            StatementKind::Assign(assign) => {
                 let _guard = self.new_node("AssignmentStatement:", buffer);
 
                 self.dump_expression(assign.lhs.as_ref(), buffer);
                 self.dump_expression(assign.rhs.as_ref(), buffer);
             }
-            Statement::While(wl) => {
+            StatementKind::While(wl) => {
                 let _guard = self.new_node("WhileStatement:", buffer);
 
                 self.dump_expression(wl.guard.as_ref(), buffer);
                 self.dump_statement(wl.body.as_ref(), buffer);
             }
-            Statement::Output(expr) => {
+            StatementKind::Output(expr) => {
                 let _guard = self.new_node("OutputStatement:", buffer);
 
                 self.dump_expression(expr.as_ref(), buffer);
             }
-            Statement::Function(expr) => {
+            StatementKind::Function(expr) => {
                 let _guard = self.new_node("FunctionStatement:", buffer);
 
-                self.dump_function(expr, buffer);
+                self.dump_function(expr.as_ref(), buffer);
             }
-            Statement::Return(expr) => {
+            StatementKind::Return(expr) => {
                 let _guard = self.new_node("ReturnStatement:", buffer);
 
-                self.dump_expression(expr, buffer);
+                self.dump_expression(expr.as_ref(), buffer);
             }
         }
     }

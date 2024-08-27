@@ -133,20 +133,20 @@ impl<'ast> Cfg<'ast> {
     }
 
     fn proccess_statement(&mut self, f: &'ast Statement) {
-        match f {
-            Statement::Compound(x) => {
+        match &f.kind {
+            StatementKind::Compound(x) => {
                 for i in x {
                     self.proccess_statement(i);
                 }
             }
-            Statement::Assign(_) | Statement::Output(_) | Statement::Return(_) => {
+            StatementKind::Assign(_) | StatementKind::Output(_) | StatementKind::Return(_) => {
                 self.push_to_last_bb(f);
             }
-            Statement::If(iff) => {
+            StatementKind::If(iff) => {
                 self.push_to_last_bb(f);
                 self.handle_if(iff);
             }
-            Statement::While(wl) => {
+            StatementKind::While(wl) => {
                 self.push_to_last_bb(f);
                 self.handle_while(&wl.body);
             }

@@ -2,7 +2,7 @@ use crate::frontend::*;
 
 pub mod typing;
 
-pub type AnalisysError<'ast> = (&'ast Statement, String);
+pub type AnalisysError<'ast> = (&'ast StatementKind, String);
 pub type AnalisysResult<'ast> = Result<(), ()>;
 
 pub trait AstAnalisys {
