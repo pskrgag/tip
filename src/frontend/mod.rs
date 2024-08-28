@@ -87,7 +87,7 @@ pub struct Assign {
 }
 
 #[derive(Debug, Clone)]
-pub enum Expression {
+pub enum ExpressionKind {
     Binary(Box<Binary>),
     Unary(Box<Unary>),
     Number(i64),
@@ -109,6 +109,12 @@ pub enum StatementKind {
     While(While),
     Function(Box<Function>),
     Return(Box<Expression>),
+}
+
+#[derive(Debug, Clone)]
+pub struct Expression {
+    pub kind: ExpressionKind,
+    pub loc: source::SourceLoc,
 }
 
 #[derive(Debug, Clone)]

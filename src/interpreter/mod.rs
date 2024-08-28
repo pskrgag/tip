@@ -114,9 +114,9 @@ impl<'a> Interpreter<'a> {
     }
 
     fn exec_lhs_expr(&mut self, e: &Expression) -> Value {
-        match e {
-            Expression::Indentifier(x) => Value::Pointer(self.env.var(x)),
-            Expression::Unary(x) => match x.as_ref() {
+        match &e.kind {
+            ExpressionKind::Indentifier(x) => Value::Pointer(self.env.var(x)),
+            ExpressionKind::Unary(x) => match x.as_ref() {
                 Unary::Deref(x) => {
                     let ptr = self.exec_lhs_expr(x);
 
@@ -128,7 +128,7 @@ impl<'a> Interpreter<'a> {
                 }
                 _ => panic!("Unary {:?} cannot be used as lhs", x),
             },
-            Expression::Member(expr, id) => {
+            ExpressionKind::Member(expr, id) => {
                 let e = self.exec_rhs_expr(expr);
 
                 if let Value::Record(x) = e {
@@ -142,16 +142,16 @@ impl<'a> Interpreter<'a> {
     }
 
     fn exec_rhs_expr(&mut self, e: &Expression) -> Value {
-        match e {
-            Expression::Indentifier(x) => {
+        match &e.kind {
+            ExpressionKind::Indentifier(x) => {
                 if let Some(f) = self.ast.function(x.id()) {
                     Value::Function(f)
                 } else {
                     self.store.read_value(self.env.var(x)).clone()
                 }
             }
-            Expression::Number(x) => Value::Number(*x),
-            Expression::Binary(b) => {
+            ExpressionKind::Number(x) => Value::Number(*x),
+            ExpressionKind::Binary(b) => {
                 let e1 = self.exec_rhs_expr(b.lhs.as_ref());
                 let e2 = self.exec_rhs_expr(b.rhs.as_ref());
 
@@ -167,7 +167,7 @@ impl<'a> Interpreter<'a> {
                     BinaryOp::Eq => (e1 == e2) as i64,
                 })
             }
-            Expression::Unary(u) => match u.as_ref() {
+            ExpressionKind::Unary(u) => match u.as_ref() {
                 Unary::Addressof(x) => Value::Pointer(self.env.var(x)),
                 Unary::Deref(x) => {
                     let ptr = self.exec_rhs_expr(x);
@@ -179,7 +179,7 @@ impl<'a> Interpreter<'a> {
                     }
                 }
             },
-            Expression::Call(call) => {
+            ExpressionKind::Call(call) => {
                 let res = self.exec_rhs_expr(call.call.as_ref());
 
                 let f = if let Value::Function(f) = res {
@@ -191,27 +191,27 @@ impl<'a> Interpreter<'a> {
                 let params = call
                     .args
                     .iter()
-                    .map(|x| self.exec_rhs_expr(x))
+                    .map(|x| self.exec_rhs_expr(x.as_ref()))
                     .collect::<Vec<_>>();
 
                 self.run_func(f, params)
             }
-            Expression::Alloc(x) => {
-                let res = self.exec_rhs_expr(x);
+            ExpressionKind::Alloc(x) => {
+                let res = self.exec_rhs_expr(x.as_ref());
 
                 Value::Pointer(self.store.new_var(res))
             }
-            Expression::Record(x) => Value::Record(
+            ExpressionKind::Record(x) => Value::Record(
                 x.iter()
                     .map(|x| {
-                        let val = self.exec_rhs_expr(&x.expr);
+                        let val = self.exec_rhs_expr(x.expr.as_ref());
                         let ptr = self.store.new_var(val);
 
                         (x.id.clone(), ptr)
                     })
                     .collect::<HashMap<_, _>>(),
             ),
-            Expression::Input => {
+            ExpressionKind::Input => {
                 let mut input_line = String::new();
 
                 std::io::stdin()
@@ -219,8 +219,8 @@ impl<'a> Interpreter<'a> {
                     .expect("Failed to read line");
                 Value::Number(input_line.trim().parse().expect("Input not an integer"))
             }
-            Expression::Null => Value::Null,
-            Expression::Member(x, id) => {
+            ExpressionKind::Null => Value::Null,
+            ExpressionKind::Member(x, id) => {
                 let e = self.exec_rhs_expr(x);
 
                 if let Value::Record(x) = e {
@@ -252,8 +252,8 @@ impl<'a> Interpreter<'a> {
                     panic!()
                 }
             }
-            StatementKind::Output(e) => match e.as_ref() {
-                Expression::Indentifier(x) => {
+            StatementKind::Output(e) => match &e.kind {
+                ExpressionKind::Indentifier(x) => {
                     println!(
                         "{:?}",
                         self.val_to_str(self.store.read_value(self.env.var(x)))

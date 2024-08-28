@@ -82,13 +82,13 @@ impl TypeAnalysis {
     }
 
     fn infer(&mut self, s: &Expression) -> Option<Type> {
-        match s {
-            Expression::Indentifier(x) => {
+        match &s.kind {
+            ExpressionKind::Indentifier(x) => {
                 let val = self.env.find_local(x).unwrap();
                 self.solver.get_value(val).or(Some(Type::Unbound(val)))
             }
-            Expression::Number(_) | Expression::Input => Some(Type::Int),
-            Expression::Binary(b) => {
+            ExpressionKind::Number(_) | ExpressionKind::Input => Some(Type::Int),
+            ExpressionKind::Binary(b) => {
                 let lhs = self.infer(b.lhs.as_ref()).unwrap();
                 let rhs = self.infer(b.rhs.as_ref()).unwrap();
 
@@ -110,7 +110,7 @@ impl TypeAnalysis {
 
                 Some(Type::Int)
             }
-            Expression::Unary(x) => match x.as_ref() {
+            ExpressionKind::Unary(x) => match x.as_ref() {
                 Unary::Addressof(name) => {
                     let tp = self.env.find_local(name).unwrap();
                     let tp = self.solver.get_value(tp).unwrap();
@@ -140,9 +140,9 @@ impl TypeAnalysis {
                     }
                 }
             },
-            Expression::Call(call) => {
-                let t = match call.call.as_ref() {
-                    Expression::Indentifier(x) => {
+            ExpressionKind::Call(call) => {
+                let t = match &call.call.kind {
+                    ExpressionKind::Indentifier(x) => {
                         let var = self.env.find_glocal(x).unwrap();
                         self.solver.get_value(var).unwrap()
                     }
@@ -166,7 +166,7 @@ impl TypeAnalysis {
 
                 self.solver.get_value(ret)
             }
-            Expression::Record(rec) => {
+            ExpressionKind::Record(rec) => {
                 let res = rec
                     .iter()
                     .map_while(|r| self.infer(r.expr.as_ref()).map(|x| (r.id.clone(), x)))
@@ -178,11 +178,11 @@ impl TypeAnalysis {
                     None
                 }
             }
-            Expression::Alloc(x) => {
+            ExpressionKind::Alloc(x) => {
                 let t = self.infer(x)?;
                 Some(Type::Pointer(Box::new(t)))
             }
-            Expression::Member(e, m) => {
+            ExpressionKind::Member(e, m) => {
                 let t = self.infer(e)?;
 
                 if let Type::Record(x) = t {
@@ -197,7 +197,7 @@ impl TypeAnalysis {
                     None
                 }
             }
-            Expression::Null => Some(Type::Unbound(self.solver.add(None))),
+            ExpressionKind::Null => Some(Type::Unbound(self.solver.add(None))),
         }
     }
 

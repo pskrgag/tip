@@ -73,14 +73,14 @@ impl<'a> AstPriner<'a> {
     }
 
     fn dump_expression<W: Write>(&self, e: &Expression, buffer: &mut W) {
-        match e {
-            Expression::Binary(binary) => {
+        match &e.kind {
+            ExpressionKind::Binary(binary) => {
                 let _guard = self.new_node(format!("BinaryExpression: {}", binary.op), buffer);
 
                 self.dump_expression(binary.lhs.as_ref(), buffer);
                 self.dump_expression(binary.rhs.as_ref(), buffer);
             }
-            Expression::Unary(unary) => {
+            ExpressionKind::Unary(unary) => {
                 let _guard = self.new_node(
                     format!(
                         "UnaryExpression: {}",
@@ -100,13 +100,13 @@ impl<'a> AstPriner<'a> {
                     self.dump_expression(x, buffer);
                 }
             }
-            Expression::Number(n) => {
+            ExpressionKind::Number(n) => {
                 self.dump_str(format!("Number({n})"), buffer);
             }
-            Expression::Indentifier(n) => {
+            ExpressionKind::Indentifier(n) => {
                 self.dump_id(n, buffer);
             }
-            Expression::Call(call) => {
+            ExpressionKind::Call(call) => {
                 let _guard = self.new_node("CallExpression:", buffer);
 
                 self.dump_expression(call.call.as_ref(), buffer);
@@ -115,24 +115,24 @@ impl<'a> AstPriner<'a> {
                     self.dump_expression(i.as_ref(), buffer);
                 }
             }
-            Expression::Alloc(alloc) => {
+            ExpressionKind::Alloc(alloc) => {
                 let _guard = self.new_node("AllocExpression:", buffer);
 
                 self.dump_expression(alloc.as_ref(), buffer);
             }
-            Expression::Null => {
+            ExpressionKind::Null => {
                 self.new_node("NullExpression", buffer);
             }
-            Expression::Input => {
+            ExpressionKind::Input => {
                 self.new_node("InputExpression", buffer);
             }
-            Expression::Member(e, id) => {
+            ExpressionKind::Member(e, id) => {
                 let _guard = self.new_node("MemberExpression", buffer);
 
                 self.dump_expression(e, buffer);
                 self.dump_id(id, buffer);
             }
-            Expression::Record(recs) => {
+            ExpressionKind::Record(recs) => {
                 let _guard = self.new_node("RecordExpression", buffer);
 
                 for i in recs.iter() {

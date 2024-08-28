@@ -105,30 +105,39 @@ pub Expression: Box<Expression> = {
 
 Expr: Expression = {
     #[precedence(level="0")]
-    Atom,
+    <r: @R> <a:Atom> <l: @L> => Expression { kind: a, loc: loc!(r, l) },
 
     #[precedence(level="1")] #[assoc(side="right")]
-    "*" <Expr> => Expression::Unary(Box::new(Unary::Deref(Box::new(<>)))),
+    <r: @R> "(" <e:Expr> ")" <l: @L> => Expression { kind: e.kind, loc: loc!(r, l) },
+    <r: @R> "*" <e:Expr> <l: @L> => 
+       Expression { kind: ExpressionKind::Unary(Box::new(Unary::Deref(Box::new(e)))), loc: loc!(r, l) },
 
     #[precedence(level="2")] #[assoc(side="right")]
-    "&" <Identifier> => Expression::Unary(Box::new(Unary::Addressof(<>))),
-    <e:Expr> "." <i:Identifier> => Expression::Member(Box::new(e), i),
+    <r: @R> "&" <i:Identifier> <l: @L> => 
+        Expression { kind: ExpressionKind::Unary(Box::new(Unary::Addressof(i))), loc: loc!(r, l) },
+
+    <r: @R> <e:Expr> "." <i:Identifier> <l: @L> => 
+        Expression { kind: ExpressionKind::Member(Box::new(e), i), loc: loc!(r, l) },
 
     #[precedence(level="3")] #[assoc(side="left")]
-    <e:Expr> "(" <l:CallList> ")" => Expression::Call(Box::new(Call { call: Box::new(e), args: l })),
+    <rr: @R> <e:Expr> "(" <l:CallList> ")" <ll: @L> => 
+        Expression { kind: ExpressionKind::Call(Box::new(Call { call: Box::new(e), args: l })), loc: loc!(rr, ll) },
 
     #[precedence(level="4")] #[assoc(side="left")]
-    <l:Expr> <o:CompareOp> <r:Expr> => Expression::Binary(Binary::new(Box::new(l), o, Box::new(r))),
+    <rr: @R> <l:Expr> <o:CompareOp> <r:Expr> <ll: @L> => 
+        Expression { kind: ExpressionKind::Binary(Binary::new(Box::new(l), o, Box::new(r))), loc: loc!(rr, ll) },
 
     #[precedence(level="5")] #[assoc(side="left")]
-    <l:Expr> <o:FactorOp> <r:Expr> => Expression::Binary(Binary::new(Box::new(l), o, Box::new(r))),
+    <rr: @R> <l:Expr> <o:FactorOp> <r:Expr> <ll: @L> => 
+       Expression { kind: ExpressionKind::Binary(Binary::new(Box::new(l), o, Box::new(r))), loc: loc!(rr, ll) },
 
     #[precedence(level="6")] #[assoc(side="left")]
-    <l:Expr> <o:ExprOp> <r:Expr> => Expression::Binary(Binary::new(Box::new(l), o, Box::new(r))),
+    <rr: @R> <l:Expr> <o:ExprOp> <r:Expr> <ll: @L> => 
+       Expression { kind: ExpressionKind::Binary(Binary::new(Box::new(l), o, Box::new(r))), loc: loc!(rr, ll) },
 
     #[precedence(level="7")]
-    "alloc" <Expr> => Expression::Alloc(Box::new(<>)),
-    "input" => Expression::Input,
+    <rr: @R> "alloc" <e:Expr> <ll: @L> => Expression { kind: ExpressionKind::Alloc(Box::new(e)), loc: loc!(rr, ll) },
+    <rr: @R> "input" <ll: @L> => Expression { kind: ExpressionKind::Input, loc: loc!(rr, ll) },
 }
 
 RecordList: Vec<Record> = {
@@ -160,14 +169,13 @@ FactorOp : BinaryOp = {
    "/" => BinaryOp::Div,
 }
 
-Atom: Expression = {
-    <Identifier> => Expression::Indentifier(<>),
-    <Num> => Expression::Number(<>),
-    "+" <Num> => Expression::Number(<>),
-    "-" <Num> => Expression::Number(<>),
-    "(" <Expr> ")" => <>,
-    "null" => Expression::Null,
-    "{" <RecordList> "}" => Expression::Record(<>),
+Atom: ExpressionKind = {
+    <Identifier> => ExpressionKind::Indentifier(<>),
+    <Num> => ExpressionKind::Number(<>),
+    "+" <Num> => ExpressionKind::Number(<>),
+    "-" <Num> => ExpressionKind::Number(<>),
+    "null" => ExpressionKind::Null,
+    "{" <RecordList> "}" => ExpressionKind::Record(<>),
 }
 
 Num: i64 = {
