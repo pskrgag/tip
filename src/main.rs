@@ -1,10 +1,9 @@
 #![allow(clippy::vec_box)]
 #![feature(box_into_inner)]
 
+use anyhow::Result;
 use clap::Parser;
 use lalrpop_util::lalrpop_mod;
-use std::fs::read_to_string;
-use std::io::Result;
 
 lalrpop_mod!(pub tip);
 
@@ -17,6 +16,8 @@ mod solvers;
 
 #[cfg(test)]
 mod tests;
+
+use frontend::source::*;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -37,11 +38,21 @@ struct Args {
     dump_cfg: Option<String>,
 }
 
-fn main() -> Result<()> {
+fn main() {
+    // The way to prevent anyhow from writing shit to console
+    match run() {
+        Err(_) => std::process::exit(-1 as i32),
+        _ => {}
+    }
+}
+
+fn run() -> Result<()> {
     let args = Args::parse();
 
-    let code_str = read_to_string(args.prog)?;
-    let mut ast = tip::TipParser::new().parse(code_str.as_str()).unwrap();
+    set_current_source(SourceFile::new(&args.prog)?);
+    let mut ast = tip::TipParser::new()
+        .parse(get_current_source().data())
+        .unwrap();
 
     let res = analisys::analyze_ast(&mut ast);
     if res.is_err() {
@@ -63,7 +74,7 @@ fn main() -> Result<()> {
 
     let res = if args.interpret {
         let i = interpreter::Interpreter::new(&ast);
-        i.run()
+        i.run()?
     } else {
         0
     };

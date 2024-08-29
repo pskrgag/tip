@@ -1,10 +1,12 @@
-use super::{AnalisysResult, AstAnalisys};
+use super::error::report_error;
+use super::AstAnalisys;
 use crate::frontend::*;
 use crate::frontend::{
     types::{Type, TypeVariable},
     Ast,
 };
 use crate::solvers::union::{UnionKey, UnionSolver};
+use anyhow::{anyhow, bail, Context, Result};
 use std::collections::HashMap;
 
 impl UnionKey for TypeVariable {
@@ -81,60 +83,67 @@ impl TypeAnalysis {
         }
     }
 
-    fn infer(&mut self, s: &Expression) -> Option<Type> {
+    fn infer(&mut self, s: &Expression) -> Result<Type> {
         match &s.kind {
             ExpressionKind::Indentifier(x) => {
                 let val = self.env.find_local(x).unwrap();
-                self.solver.get_value(val).or(Some(Type::Unbound(val)))
+                if let Some(x) = self.solver.get_value(val) {
+                    Ok(x)
+                } else {
+                    Ok(Type::Unbound(val))
+                }
             }
-            ExpressionKind::Number(_) | ExpressionKind::Input => Some(Type::Int),
+            ExpressionKind::Number(_) | ExpressionKind::Input => Ok(Type::Int),
             ExpressionKind::Binary(b) => {
                 let lhs = self.infer(b.lhs.as_ref()).unwrap();
                 let rhs = self.infer(b.rhs.as_ref()).unwrap();
 
-                self.unify(&lhs, &Type::Int).ok().or_else(|| {
-                    println!(
-                        "{:?} cannot be type lhs of binary expression in '{:?}'",
-                        lhs, s
-                    );
-                    None
-                })?;
+                crate::failable!(
+                    self.unify(&lhs, &Type::Int),
+                    s,
+                    "{:?} cannot be type lhs of binary expression in '{:?}'",
+                    lhs,
+                    s
+                );
 
-                self.unify(&rhs, &Type::Int).ok().or_else(|| {
-                    println!(
-                        "{:?} cannot be type rhs of binary expression in '{:?}'",
-                        rhs, s
-                    );
-                    None
-                })?;
+                crate::failable!(
+                    self.unify(&rhs, &Type::Int),
+                    s,
+                    "{:?} cannot be type rhs of binary expression in '{:?}'",
+                    rhs,
+                    s,
+                );
 
-                Some(Type::Int)
+                Ok(Type::Int)
             }
             ExpressionKind::Unary(x) => match x.as_ref() {
                 Unary::Addressof(name) => {
                     let tp = self.env.find_local(name).unwrap();
                     let tp = self.solver.get_value(tp).unwrap();
-                    Some(Type::Pointer(Box::new(tp)))
+                    Ok(Type::Pointer(Box::new(tp)))
                 }
                 Unary::Deref(e) => {
                     let tp = self.infer(e).unwrap();
                     let new_type = self.solver.add(None);
 
-                    self.unify(&tp, &Type::Pointer(Box::new(Type::Unbound(new_type))))
-                        .ok()
-                        .or_else(|| {
-                            println!("Cannot derefence type {:?}", tp);
-                            None
-                        })?;
+                    crate::failable!(
+                        self.unify(&tp, &Type::Pointer(Box::new(Type::Unbound(new_type)))),
+                        e,
+                        "Cannot derefence type {:?}",
+                        tp
+                    );
 
                     if let Type::Pointer(x) = tp {
-                        Some(x.as_ref().clone())
+                        Ok(x.as_ref().clone())
                     } else if let Type::Unbound(x) = tp {
-                        if let Some(Type::Pointer(x)) = self.solver.get_value(x) {
-                            Some(x.as_ref().clone())
-                        } else {
-                            panic!("Should not happen {:?}", tp);
-                        }
+                        let x = self
+                            .solver
+                            .get_value(x)
+                            .unwrap()
+                            .as_pointer()
+                            .unwrap()
+                            .clone();
+                        Ok(x.as_ref().clone())
                     } else {
                         panic!("Should not happen {:?}", tp)
                     }
@@ -143,7 +152,12 @@ impl TypeAnalysis {
             ExpressionKind::Call(call) => {
                 let t = match &call.call.kind {
                     ExpressionKind::Indentifier(x) => {
-                        let var = self.env.find_glocal(x).unwrap();
+                        let var = crate::failable_opt!(
+                            self.env.find_glocal(x),
+                            call.call,
+                            "Cannot find function {:?}",
+                            x
+                        );
                         self.solver.get_value(var).unwrap()
                     }
                     _ => self.infer(call.call.as_ref()).unwrap(),
@@ -157,47 +171,47 @@ impl TypeAnalysis {
 
                 let ret = self.solver.add(None);
 
-                self.unify(&t, &Type::Function(Box::new(Type::Unbound(ret)), v))
-                    .ok()
-                    .or_else(|| {
-                        println!("{:?} --- ??", t);
-                        None
-                    })?;
+                crate::failable!(
+                    self.unify(&t, &Type::Function(Box::new(Type::Unbound(ret)), v)),
+                    s,
+                    "todo"
+                );
 
-                self.solver.get_value(ret)
+                self.solver.get_value(ret).context("")
             }
             ExpressionKind::Record(rec) => {
                 let res = rec
                     .iter()
-                    .map_while(|r| self.infer(r.expr.as_ref()).map(|x| (r.id.clone(), x)))
+                    .map_while(|r| self.infer(r.expr.as_ref()).ok().map(|x| (r.id.clone(), x)))
                     .collect::<Vec<_>>();
 
                 if res.len() == rec.len() {
-                    Some(Type::Record(res))
+                    Ok(Type::Record(res))
                 } else {
-                    None
+                    bail!("")
                 }
             }
             ExpressionKind::Alloc(x) => {
                 let t = self.infer(x)?;
-                Some(Type::Pointer(Box::new(t)))
+                Ok(Type::Pointer(Box::new(t)))
             }
             ExpressionKind::Member(e, m) => {
                 let t = self.infer(e)?;
 
                 if let Type::Record(x) = t {
-                    let r = x.iter().find(|x| &x.0 == m).or_else(|| {
-                        println!("Unknown member");
-                        None
-                    })?;
-
-                    Some(r.1.clone())
+                    let r = crate::failable_opt!(
+                        x.iter().find(|x| &x.0 == m),
+                        s,
+                        "Unknown member {:?}",
+                        m
+                    );
+                    Ok(r.1.clone())
                 } else {
                     println!("Trying to access non-record type with '.'");
-                    None
+                    bail!("")
                 }
             }
-            ExpressionKind::Null => Some(Type::Unbound(self.solver.add(None))),
+            ExpressionKind::Null => Ok(Type::Unbound(self.solver.add(None))),
         }
     }
 
@@ -228,21 +242,13 @@ impl TypeAnalysis {
                 self.unify(ret1, ret2)?;
 
                 if args1.len() == args2.len() {
-                    let v = std::iter::zip(args1, args2)
-                        .map(|(x, y)| {
-                            self.unify(x, y).map_err(|_| {
-                                println!("Cannot pass {:?} to {:?}", x, y);
-                            })
-                        })
-                        .collect::<Vec<_>>();
-                    let old = v.len();
+                    std::iter::zip(args1, args2).try_fold(vec![], |mut acc, (x, y)| {
+                        let res = self.unify(x, y)?;
+                        acc.push(res);
+                        Ok(acc)
+                    })?;
 
-                    let res = v.into_iter().flatten().collect::<Vec<_>>();
-                    if old != res.len() {
-                        Err(())
-                    } else {
-                        Ok(())
-                    }
+                    Ok(())
                 } else {
                     Err(())
                 }
@@ -258,15 +264,19 @@ impl TypeAnalysis {
         }
     }
 
-    fn proccess_stmt(&mut self, s: &Statement) -> AnalisysResult {
+    fn proccess_stmt(&mut self, s: &Statement) -> Result<()> {
         match &s.kind {
             StatementKind::Assign(assign) => {
-                let lhs = self.infer(assign.lhs.as_ref()).ok_or(())?;
-                let rhs = self.infer(assign.rhs.as_ref()).ok_or(())?;
+                let lhs = self.infer(assign.lhs.as_ref())?;
+                let rhs = self.infer(assign.rhs.as_ref())?;
 
-                self.unify(&lhs, &rhs).map_err(|_| {
-                    println!("Cannot assign {:?} to {:?} in '{:?}'", rhs, lhs, s);
-                })?;
+                crate::failable!(
+                    self.unify(&lhs, &rhs),
+                    s,
+                    "Cannot assign {:?} to {:?}",
+                    rhs,
+                    lhs
+                );
                 Ok(())
             }
             StatementKind::Compound(x) => {
@@ -277,29 +287,32 @@ impl TypeAnalysis {
                 Ok(())
             }
             StatementKind::Output(x) => {
-                let t = self.infer(x.as_ref()).ok_or(())?;
+                let t = self.infer(x.as_ref())?;
 
-                self.unify(&t, &Type::Int).map_err(|_| {
-                    println!("Cannot output type {:?} in '{:?}'", t, s);
-                })?;
-
+                crate::failable!(self.unify(&t, &Type::Int), s, "Cannot output type {:?}", t,);
                 Ok(())
             }
             StatementKind::While(wh) => {
-                let t = self.infer(wh.guard.as_ref()).ok_or(())?;
+                let t = self.infer(wh.guard.as_ref())?;
 
-                self.unify(&t, &Type::Int).map_err(|_| {
-                    println!("Cannot use type {:?} as while guard '{:?}'", t, s);
-                })?;
+                crate::failable!(
+                    self.unify(&t, &Type::Int),
+                    s,
+                    "Cannot use type {:?} as while guard",
+                    t
+                );
 
                 self.proccess_stmt(wh.body.as_ref())
             }
             StatementKind::If(iff) => {
-                let t = self.infer(iff.guard.as_ref()).ok_or(())?;
+                let t = self.infer(iff.guard.as_ref())?;
 
-                self.unify(&t, &Type::Int).map_err(|_| {
-                    println!("Cannot use type {:?} as while guard '{:?}'", t, s);
-                })?;
+                crate::failable!(
+                    self.unify(&t, &Type::Int),
+                    s,
+                    "Cannot use type {:?} as while guard",
+                    t
+                );
 
                 self.proccess_stmt(iff.then.as_ref())?;
 
@@ -313,7 +326,7 @@ impl TypeAnalysis {
         }
     }
 
-    fn proccess_function(&mut self, f: &mut Function) -> AnalisysResult {
+    fn proccess_function(&mut self, f: &mut Function) -> Result<()> {
         for i in f.locals() {
             for local in i {
                 let key = self.solver.add(None);
@@ -357,17 +370,21 @@ impl TypeAnalysis {
 
         let ret = if f.name() == "main" {
             if let StatementKind::Return(ref x) = f.ret_e().kind {
-                let t = self.infer(x.as_ref()).ok_or(())?;
-                self.unify(&t, &Type::Int).map_err(|_| {
-                    println!("{:?} cannot be return type of 'main'", t);
-                })?;
+                let t = self.infer(x.as_ref())?;
+
+                crate::failable!(
+                    self.unify(&t, &Type::Int),
+                    f.ret_e(),
+                    "{:?} cannot be return type of 'main'",
+                    t
+                );
 
                 t
             } else {
                 unreachable!()
             }
         } else if let StatementKind::Return(ref x) = f.ret_e().kind {
-            let t = self.infer(x.as_ref()).ok_or(())?;
+            let t = self.infer(x.as_ref())?;
 
             if let Type::Function(_, y) = self.solver.get_value(function_key).unwrap() {
                 self.solver
@@ -394,7 +411,7 @@ impl TypeAnalysis {
 }
 
 impl AstAnalisys for TypeAnalysis {
-    fn run(&mut self, f: &mut Ast) -> AnalisysResult {
+    fn run(&mut self, f: &mut Ast) -> Result<()> {
         for i in f.functions_mut() {
             self.proccess_function(i)?;
         }

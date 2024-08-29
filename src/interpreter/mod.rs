@@ -1,10 +1,13 @@
+use crate::frontend::error::report_error;
 use crate::frontend::*;
+use anyhow::{bail, Context, Result};
+use enum_as_inner::EnumAsInner;
 use std::collections::HashMap;
 use std::collections::LinkedList;
 
 type Pointer = usize;
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, EnumAsInner)]
 enum Value {
     #[default]
     Undefined,
@@ -14,6 +17,12 @@ enum Value {
     Function(FunctionPoiner),
     Record(HashMap<Indentifier, Pointer>),
     Null,
+}
+
+macro_rules! report_undefined {
+    ($e:expr, $node:tt, $name:expr) => {
+        failable!($e, $node, "Use of undefined variable {:?}", $name)
+    };
 }
 
 #[derive(Default)]
@@ -37,20 +46,17 @@ impl Env {
         self.0.pop_back();
     }
 
-    fn map_var(&mut self, name: Indentifier, dts: Pointer) {
-        self.0
-            .back_mut()
-            .unwrap_or_else(|| panic!("use of undeclared variable {:?}", name))
-            .insert(name, dts);
+    fn map_var(&mut self, name: Indentifier, dts: Pointer) -> Result<()> {
+        self.0.back_mut().context("")?.insert(name, dts);
+        Ok(())
     }
 
     pub fn maybe_var(&self, name: &Indentifier) -> Option<Pointer> {
         self.0.back().unwrap().get(name).copied()
     }
 
-    pub fn var(&self, name: &Indentifier) -> Pointer {
-        self.maybe_var(name)
-            .unwrap_or_else(|| panic!("Cannot find varible {:?}", name))
+    pub fn var(&self, name: &Indentifier) -> Result<Pointer> {
+        Ok(self.maybe_var(name).context("")?)
     }
 }
 
@@ -86,14 +92,16 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    pub fn run(mut self) -> i64 {
+    pub fn run(mut self) -> Result<i64> {
         let main = self.ast.main().expect("No main function found");
-        let val = self.run_func(main, vec![]);
+        let main_f = self.ast.function_by_index(main).unwrap();
+        let val = self.run_func(main, vec![])?;
 
         if let Value::Number(x) = val {
-            x
+            Ok(x)
         } else {
-            panic!("Main should only return ints!");
+            report_error(main_f.ret_e().loc, "Main should only return ints!", "");
+            bail!("")
         }
     }
 
@@ -113,12 +121,15 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn exec_lhs_expr(&mut self, e: &Expression) -> Value {
-        match &e.kind {
-            ExpressionKind::Indentifier(x) => Value::Pointer(self.env.var(x)),
+    fn exec_lhs_expr(&mut self, e: &Expression) -> Result<Value> {
+        Ok(match &e.kind {
+            ExpressionKind::Indentifier(x) => {
+                let val = report_undefined!(self.env.var(x), e, x);
+                Value::Pointer(val)
+            }
             ExpressionKind::Unary(x) => match x.as_ref() {
                 Unary::Deref(x) => {
-                    let ptr = self.exec_lhs_expr(x);
+                    let ptr = self.exec_lhs_expr(x)?;
 
                     if let Value::Pointer(ptr) = ptr {
                         self.store.read_value(ptr).clone()
@@ -129,7 +140,7 @@ impl<'a> Interpreter<'a> {
                 _ => panic!("Unary {:?} cannot be used as lhs", x),
             },
             ExpressionKind::Member(expr, id) => {
-                let e = self.exec_rhs_expr(expr);
+                let e = self.exec_rhs_expr(expr)?;
 
                 if let Value::Record(x) = e {
                     Value::Pointer(*x.get(id).unwrap())
@@ -138,22 +149,23 @@ impl<'a> Interpreter<'a> {
                 }
             }
             _ => panic!("{:?} Cannot be an lhs expression", e),
-        }
+        })
     }
 
-    fn exec_rhs_expr(&mut self, e: &Expression) -> Value {
-        match &e.kind {
+    fn exec_rhs_expr(&mut self, e: &Expression) -> Result<Value> {
+        Ok(match &e.kind {
             ExpressionKind::Indentifier(x) => {
                 if let Some(f) = self.ast.function(x.id()) {
                     Value::Function(f)
                 } else {
-                    self.store.read_value(self.env.var(x)).clone()
+                    let var = report_undefined!(self.env.var(x), e, x);
+                    self.store.read_value(var).clone()
                 }
             }
             ExpressionKind::Number(x) => Value::Number(*x),
             ExpressionKind::Binary(b) => {
-                let e1 = self.exec_rhs_expr(b.lhs.as_ref());
-                let e2 = self.exec_rhs_expr(b.rhs.as_ref());
+                let e1 = self.exec_rhs_expr(b.lhs.as_ref())?;
+                let e2 = self.exec_rhs_expr(b.rhs.as_ref())?;
 
                 let e1 = self.map_to_int(e1);
                 let e2 = self.map_to_int(e2);
@@ -168,9 +180,12 @@ impl<'a> Interpreter<'a> {
                 })
             }
             ExpressionKind::Unary(u) => match u.as_ref() {
-                Unary::Addressof(x) => Value::Pointer(self.env.var(x)),
+                Unary::Addressof(x) => {
+                    let var = report_undefined!(self.env.var(x), e, x);
+                    Value::Pointer(var)
+                }
                 Unary::Deref(x) => {
-                    let ptr = self.exec_rhs_expr(x);
+                    let ptr = self.exec_rhs_expr(x)?;
 
                     if let Value::Pointer(ptr) = ptr {
                         self.store.read_value(ptr).clone()
@@ -180,36 +195,42 @@ impl<'a> Interpreter<'a> {
                 }
             },
             ExpressionKind::Call(call) => {
-                let res = self.exec_rhs_expr(call.call.as_ref());
+                let res = self.exec_rhs_expr(call.call.as_ref())?;
 
                 let f = if let Value::Function(f) = res {
                     f
                 } else {
-                    panic!("Expected fuction, but got {:?}", res);
+                    report_error(
+                        call.call.loc,
+                        format!("Expected function, but got {:?}", res).as_str(),
+                        "",
+                    );
+                    bail!("")
                 };
 
-                let params = call
-                    .args
-                    .iter()
-                    .map(|x| self.exec_rhs_expr(x.as_ref()))
-                    .collect::<Vec<_>>();
+                let params: Vec<Value> = call.args.iter().try_fold(vec![], |mut acc, x| {
+                    acc.push(self.exec_rhs_expr(x.as_ref())?);
+                    Ok::<Vec<Value>, anyhow::Error>(acc)
+                })?;
 
-                self.run_func(f, params)
+                self.run_func(f, params)?
             }
             ExpressionKind::Alloc(x) => {
-                let res = self.exec_rhs_expr(x.as_ref());
+                let res = self.exec_rhs_expr(x.as_ref())?;
 
                 Value::Pointer(self.store.new_var(res))
             }
             ExpressionKind::Record(x) => Value::Record(
                 x.iter()
-                    .map(|x| {
-                        let val = self.exec_rhs_expr(x.expr.as_ref());
+                    .try_fold(vec![], |mut acc, x| {
+                        let val = self.exec_rhs_expr(x.expr.as_ref())?;
                         let ptr = self.store.new_var(val);
 
-                        (x.id.clone(), ptr)
-                    })
-                    .collect::<HashMap<_, _>>(),
+                        acc.push((x.id.clone(), ptr));
+                        Ok::<Vec<(Indentifier, usize)>, anyhow::Error>(acc)
+                    })?
+                    .into_iter()
+                    .collect(),
             ),
             ExpressionKind::Input => {
                 let mut input_line = String::new();
@@ -221,7 +242,7 @@ impl<'a> Interpreter<'a> {
             }
             ExpressionKind::Null => Value::Null,
             ExpressionKind::Member(x, id) => {
-                let e = self.exec_rhs_expr(x);
+                let e = self.exec_rhs_expr(x)?;
 
                 if let Value::Record(x) = e {
                     self.store.read_value(*x.get(id).unwrap()).clone()
@@ -229,7 +250,7 @@ impl<'a> Interpreter<'a> {
                     panic!("Wtf {:?} {:?}", e, x)
                 }
             }
-        }
+        })
     }
 
     fn val_to_str(&self, v: &Value) -> String {
@@ -240,46 +261,42 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn exec_statement(&mut self, f: &Statement) {
+    fn exec_statement(&mut self, f: &Statement) -> Result<()> {
         match &f.kind {
             StatementKind::Assign(assign) => {
-                let e = self.exec_rhs_expr(assign.rhs.as_ref());
-                let ptr = self.exec_lhs_expr(assign.lhs.as_ref());
+                let e = self.exec_rhs_expr(assign.rhs.as_ref())?;
+                let ptr = self.exec_lhs_expr(assign.lhs.as_ref())?;
 
-                if let Value::Pointer(ptr) = ptr {
-                    self.store.store_value(ptr, e);
-                } else {
-                    panic!()
-                }
+                failable_match!(ptr, Value::Pointer(_), f, "pointer");
+
+                let ptr = ptr.as_pointer().expect("never happens");
+                self.store.store_value(*ptr, e);
             }
             StatementKind::Output(e) => match &e.kind {
                 ExpressionKind::Indentifier(x) => {
-                    println!(
-                        "{:?}",
-                        self.val_to_str(self.store.read_value(self.env.var(x)))
-                    )
+                    let var = report_undefined!(self.env.var(x), e, x);
+                    println!("{:?}", self.val_to_str(self.store.read_value(var)))
                 }
                 _ => {
-                    let v = self.exec_rhs_expr(e);
+                    let v = self.exec_rhs_expr(e)?;
                     println!("{}", self.val_to_str(&v));
                 }
             },
             StatementKind::If(iff) => {
-                let guard = self.exec_lhs_expr(iff.guard.as_ref());
+                let guard = self.exec_lhs_expr(iff.guard.as_ref())?;
 
-                if let Value::Number(x) = guard {
-                    if x == 1 {
-                        self.exec_statement(iff.then.as_ref());
-                    } else if let Some(els) = iff.elsee.as_ref() {
-                        self.exec_statement(els);
-                    }
-                } else {
-                    panic!("");
+                failable_match!(guard, Value::Number(_), f, "number");
+
+                let x = *guard.as_number().expect("never happens");
+                if x == 1 {
+                    self.exec_statement(iff.then.as_ref())?;
+                } else if let Some(els) = iff.elsee.as_ref() {
+                    self.exec_statement(els)?;
                 }
             }
             StatementKind::Compound(x) => {
                 for i in x {
-                    self.exec_statement(i);
+                    self.exec_statement(i)?;
                 }
             }
             StatementKind::Function(_) => {
@@ -289,22 +306,23 @@ impl<'a> Interpreter<'a> {
                 panic!("")
             }
             StatementKind::While(wl) => loop {
-                let e = self.exec_rhs_expr(&wl.guard);
+                let e = self.exec_rhs_expr(&wl.guard)?;
 
-                if let Value::Number(e) = e {
-                    if e == 1 {
-                        self.exec_statement(&wl.body);
-                    } else {
-                        break;
-                    }
+                failable_match!(e, Value::Number(_), f, "number");
+
+                let e = *e.as_number().expect("never happens");
+                if e == 1 {
+                    self.exec_statement(&wl.body)?;
                 } else {
-                    panic!()
+                    break;
                 }
             },
         }
+
+        Ok(())
     }
 
-    fn run_func(&mut self, f: FunctionPoiner, args: Vec<Value>) -> Value {
+    fn run_func(&mut self, f: FunctionPoiner, args: Vec<Value>) -> Result<Value> {
         let f = self.ast.function_by_index(f).unwrap();
 
         self.env.scope_begin();
@@ -313,25 +331,26 @@ impl<'a> Interpreter<'a> {
             for (name, val) in std::iter::zip(p.iter(), args.into_iter()) {
                 let var = self.store.new_var(val);
 
-                self.env.map_var(name.id().clone(), var)
+                self.env.map_var(name.id().clone(), var).unwrap()
             }
         }
 
         for i in f.locals() {
             for i in i {
                 let var = self.store.new_var(Value::Undefined);
-                self.env.map_var(i.id().clone(), var);
+
+                self.env.map_var(i.id().clone(), var).unwrap();
             }
         }
 
         if let Some(body) = f.body() {
-            self.exec_statement(body);
+            self.exec_statement(body)?;
         }
 
         if let StatementKind::Return(ref x) = f.ret_e().kind {
-            let res = self.exec_rhs_expr(x.as_ref());
+            let res = self.exec_rhs_expr(x.as_ref())?;
             self.env.scope_end();
-            res
+            Ok(res)
         } else {
             unreachable!()
         }
@@ -355,7 +374,7 @@ mod test {
             let num = caps[1].parse::<i64>().unwrap();
 
             let int = Interpreter::new(ast);
-            let res = int.run();
+            let res = int.run().unwrap();
 
             if res != num {
                 println!("Program {:?} produced wrong result", path);

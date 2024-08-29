@@ -1,11 +1,12 @@
 use crate::frontend::Indentifier;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use enum_as_inner::EnumAsInner;
 
 pub type TypeVariable = usize;
 
 static UNBOUND_CNT: AtomicUsize = AtomicUsize::new(0);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, EnumAsInner)]
 pub enum Type {
     Unbound(TypeVariable),
     Int,

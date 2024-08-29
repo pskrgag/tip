@@ -3,6 +3,7 @@ use lalrpop_util::lalrpop_mod;
 use regex::{Captures, Regex};
 use std::fs;
 use std::path::Path;
+use crate::frontend::source::*;
 
 lalrpop_mod!(pub tip);
 
@@ -20,6 +21,10 @@ pub fn for_each_prog_parsed<P: AsRef<str>, F: Fn(&Captures, &mut Ast, &Path)>(
         }
 
         let code = fs::read_to_string(&path).unwrap();
+        let source = SourceFile::new(&path).unwrap();
+
+        set_current_source(source);
+
         let mut lines = code.lines();
         let first_line = lines.next().unwrap();
 

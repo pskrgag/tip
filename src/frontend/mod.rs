@@ -6,6 +6,9 @@ pub mod cfg;
 pub mod types;
 
 #[macro_use]
+pub mod error;
+
+#[macro_use]
 pub mod source;
 
 #[derive(Debug)]
