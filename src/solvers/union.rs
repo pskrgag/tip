@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use std::fmt::Debug;
 
 pub trait UnionKey: PartialEq + Eq + Clone {
@@ -99,22 +100,22 @@ impl<T: UnionKey> UnionSolver<T> {
         }
     }
 
-    pub fn unify_var_val(&mut self, key: T, val: T::Value) -> Result<(), ()> {
+    pub fn unify_var_val(&mut self, key: T, val: T::Value) -> Result<()> {
         let par = self.parent(&key);
         let v = self.value(par);
 
-        let res = T::unify(&v.value, &val).ok_or(())?;
+        let res = T::unify(&v.value, &val).ok_or(anyhow!(""))?;
         self.update_val(&par.clone(), |x| x.value = res);
         Ok(())
     }
 
-    pub fn unify_var_var(&mut self, key2: T, key1: T) -> Result<(), ()> {
+    pub fn unify_var_var(&mut self, key2: T, key1: T) -> Result<()> {
         let par1 = self.parent(&key1);
         let par2 = self.parent(&key2);
         let v1 = self.value(par1);
         let v2 = self.value(par2);
 
-        T::unify(&v1.value, &v2.value).ok_or(())?;
+        T::unify(&v1.value, &v2.value).ok_or(anyhow!(""))?;
         self.union(key1, key2);
 
         Ok(())

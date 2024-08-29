@@ -13,6 +13,7 @@ pub enum Type {
     Function(Box<Type>, Vec<Type>),
     Pointer(Box<Type>),
     Record(Vec<(Indentifier, Type)>),
+    Void,
 }
 
 impl Type {

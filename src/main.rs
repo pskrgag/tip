@@ -36,6 +36,10 @@ struct Args {
     /// Dumps cfg of a function into "out.dot"
     #[arg(long, value_name = "FUNCTION NAME")]
     dump_cfg: Option<String>,
+
+    /// Skip analisys pass
+    #[arg(short, long)]
+    skip_analisys: bool,
 }
 
 fn main() {
@@ -54,10 +58,12 @@ fn run() -> Result<()> {
         .parse(get_current_source().data())
         .unwrap();
 
-    let res = analisys::analyze_ast(&mut ast);
-    if res.is_err() {
-        println!("Cannot proccess futher because of previous error");
-        std::process::exit(-1)
+    if !args.skip_analisys {
+        let res = analisys::analyze_ast(&mut ast);
+        if res.is_err() {
+            println!("Cannot proccess futher because of previous error");
+            std::process::exit(-1)
+        }
     }
 
     if args.dump_ast {

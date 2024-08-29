@@ -1,3 +1,4 @@
+use enum_as_inner::EnumAsInner;
 use std::fmt::{Display, Formatter};
 use types::Type;
 
@@ -31,7 +32,6 @@ pub struct Function {
     params: Option<Vec<TypedIndentifier>>,
     locals: Vec<Vec<TypedIndentifier>>,
     body: Option<Box<Statement>>,
-    ret: Box<Statement>,
     ret_type: Option<Type>,
 }
 
@@ -103,7 +103,7 @@ pub enum ExpressionKind {
     Input,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EnumAsInner)]
 pub enum StatementKind {
     Compound(Vec<Box<Statement>>),
     Assign(Box<Assign>),
@@ -112,6 +112,7 @@ pub enum StatementKind {
     While(While),
     Function(Box<Function>),
     Return(Box<Expression>),
+    Expression(Box<Expression>),
 }
 
 #[derive(Debug, Clone)]
@@ -164,14 +165,12 @@ impl Function {
         params: Option<Vec<TypedIndentifier>>,
         locals: Vec<Vec<TypedIndentifier>>,
         body: Option<Box<Statement>>,
-        ret: Box<Statement>,
     ) -> Box<Self> {
         Box::new(Self {
             name,
             params,
             locals,
             body,
-            ret,
             ret_type: None,
         })
     }
@@ -208,12 +207,18 @@ impl Function {
         &self.body
     }
 
-    pub fn ret_e(&self) -> &Statement {
-        &self.ret
-    }
-
     pub fn locals(&self) -> &Vec<Vec<TypedIndentifier>> {
         &self.locals
+    }
+
+    pub fn last_ret(&self) -> Option<&Box<Statement>> {
+        let b = self.body.as_ref()?;
+
+        let comp = b.kind.as_compound().unwrap();
+
+        comp.iter()
+            .rev()
+            .find(|x| matches!(x.kind, StatementKind::Return(_)))
     }
 }
 

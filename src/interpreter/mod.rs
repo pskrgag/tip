@@ -25,7 +25,21 @@ macro_rules! report_undefined {
     };
 }
 
-#[derive(Default)]
+macro_rules! ret_if_val {
+    ($e:expr) => {
+        if let ret @ Some(_) = $e? {
+            return Ok(ret);
+        }
+    };
+}
+
+macro_rules! bail_on_void {
+    ($e:expr, $node:expr) => {
+        failable_opt!($e, $node, "Cannot have 'void' value")
+    };
+}
+
+#[derive(Default, Debug)]
 struct Env(LinkedList<HashMap<Indentifier, Pointer>>);
 
 #[derive(Default)]
@@ -97,11 +111,10 @@ impl<'a> Interpreter<'a> {
         let main_f = self.ast.function_by_index(main).unwrap();
         let val = self.run_func(main, vec![])?;
 
-        if let Value::Number(x) = val {
+        if let Some(Value::Number(x)) = val {
             Ok(x)
         } else {
-            report_error(main_f.ret_e().loc, "Main should only return ints!", "");
-            bail!("")
+            bail_with_error!(main_f.last_ret().unwrap(), "Main should only return ints");
         }
     }
 
@@ -124,6 +137,7 @@ impl<'a> Interpreter<'a> {
     fn exec_lhs_expr(&mut self, e: &Expression) -> Result<Value> {
         Ok(match &e.kind {
             ExpressionKind::Indentifier(x) => {
+                self.env.var(x).unwrap();
                 let val = report_undefined!(self.env.var(x), e, x);
                 Value::Pointer(val)
             }
@@ -140,7 +154,7 @@ impl<'a> Interpreter<'a> {
                 _ => panic!("Unary {:?} cannot be used as lhs", x),
             },
             ExpressionKind::Member(expr, id) => {
-                let e = self.exec_rhs_expr(expr)?;
+                let e = bail_on_void!(self.exec_rhs_expr(expr)?, e);
 
                 if let Value::Record(x) = e {
                     Value::Pointer(*x.get(id).unwrap())
@@ -152,50 +166,50 @@ impl<'a> Interpreter<'a> {
         })
     }
 
-    fn exec_rhs_expr(&mut self, e: &Expression) -> Result<Value> {
+    fn exec_rhs_expr(&mut self, e: &Expression) -> Result<Option<Value>> {
         Ok(match &e.kind {
             ExpressionKind::Indentifier(x) => {
                 if let Some(f) = self.ast.function(x.id()) {
-                    Value::Function(f)
+                    Some(Value::Function(f))
                 } else {
                     let var = report_undefined!(self.env.var(x), e, x);
-                    self.store.read_value(var).clone()
+                    Some(self.store.read_value(var).clone())
                 }
             }
-            ExpressionKind::Number(x) => Value::Number(*x),
+            ExpressionKind::Number(x) => Some(Value::Number(*x)),
             ExpressionKind::Binary(b) => {
-                let e1 = self.exec_rhs_expr(b.lhs.as_ref())?;
-                let e2 = self.exec_rhs_expr(b.rhs.as_ref())?;
+                let e1 = bail_on_void!(self.exec_rhs_expr(b.lhs.as_ref())?, b.lhs);
+                let e2 = bail_on_void!(self.exec_rhs_expr(b.rhs.as_ref())?, b.rhs);
 
                 let e1 = self.map_to_int(e1);
                 let e2 = self.map_to_int(e2);
 
-                Value::Number(match b.op {
+                Some(Value::Number(match b.op {
                     BinaryOp::Mul => e1 * e2,
                     BinaryOp::Plus => e1 + e2,
                     BinaryOp::Div => e1 / e2,
                     BinaryOp::Minus => e1 - e2,
                     BinaryOp::Gt => (e1 > e2) as i64,
                     BinaryOp::Eq => (e1 == e2) as i64,
-                })
+                }))
             }
             ExpressionKind::Unary(u) => match u.as_ref() {
                 Unary::Addressof(x) => {
                     let var = report_undefined!(self.env.var(x), e, x);
-                    Value::Pointer(var)
+                    Some(Value::Pointer(var))
                 }
                 Unary::Deref(x) => {
-                    let ptr = self.exec_rhs_expr(x)?;
+                    let ptr = bail_on_void!(self.exec_rhs_expr(x)?, x);
 
                     if let Value::Pointer(ptr) = ptr {
-                        self.store.read_value(ptr).clone()
+                        Some(self.store.read_value(ptr).clone())
                     } else {
                         panic!("Expected pointer, but got {:?}", ptr)
                     }
                 }
             },
             ExpressionKind::Call(call) => {
-                let res = self.exec_rhs_expr(call.call.as_ref())?;
+                let res = bail_on_void!(self.exec_rhs_expr(call.call.as_ref())?, call.call);
 
                 let f = if let Value::Function(f) = res {
                     f
@@ -209,21 +223,21 @@ impl<'a> Interpreter<'a> {
                 };
 
                 let params: Vec<Value> = call.args.iter().try_fold(vec![], |mut acc, x| {
-                    acc.push(self.exec_rhs_expr(x.as_ref())?);
+                    acc.push(bail_on_void!(self.exec_rhs_expr(x.as_ref())?, x));
                     Ok::<Vec<Value>, anyhow::Error>(acc)
                 })?;
 
                 self.run_func(f, params)?
             }
             ExpressionKind::Alloc(x) => {
-                let res = self.exec_rhs_expr(x.as_ref())?;
+                let res = bail_on_void!(self.exec_rhs_expr(x.as_ref())?, x);
 
-                Value::Pointer(self.store.new_var(res))
+                Some(Value::Pointer(self.store.new_var(res)))
             }
-            ExpressionKind::Record(x) => Value::Record(
+            ExpressionKind::Record(x) => Some(Value::Record(
                 x.iter()
                     .try_fold(vec![], |mut acc, x| {
-                        let val = self.exec_rhs_expr(x.expr.as_ref())?;
+                        let val = bail_on_void!(self.exec_rhs_expr(x.expr.as_ref())?, x.expr);
                         let ptr = self.store.new_var(val);
 
                         acc.push((x.id.clone(), ptr));
@@ -231,21 +245,23 @@ impl<'a> Interpreter<'a> {
                     })?
                     .into_iter()
                     .collect(),
-            ),
+            )),
             ExpressionKind::Input => {
                 let mut input_line = String::new();
 
                 std::io::stdin()
                     .read_line(&mut input_line)
                     .expect("Failed to read line");
-                Value::Number(input_line.trim().parse().expect("Input not an integer"))
+                Some(Value::Number(
+                    input_line.trim().parse().expect("Input not an integer"),
+                ))
             }
-            ExpressionKind::Null => Value::Null,
+            ExpressionKind::Null => Some(Value::Null),
             ExpressionKind::Member(x, id) => {
-                let e = self.exec_rhs_expr(x)?;
+                let e = bail_on_void!(self.exec_rhs_expr(x)?, e);
 
                 if let Value::Record(x) = e {
-                    self.store.read_value(*x.get(id).unwrap()).clone()
+                    Some(self.store.read_value(*x.get(id).unwrap()).clone())
                 } else {
                     panic!("Wtf {:?} {:?}", e, x)
                 }
@@ -261,25 +277,32 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn exec_statement(&mut self, f: &Statement) -> Result<()> {
+    fn exec_statement(&mut self, f: &Statement) -> Result<Option<Value>> {
         match &f.kind {
+            StatementKind::Expression(e) => {
+                self.exec_rhs_expr(e)?;
+                Ok(None)
+            }
             StatementKind::Assign(assign) => {
-                let e = self.exec_rhs_expr(assign.rhs.as_ref())?;
+                let e = bail_on_void!(self.exec_rhs_expr(assign.rhs.as_ref())?, assign.rhs);
                 let ptr = self.exec_lhs_expr(assign.lhs.as_ref())?;
 
                 failable_match!(ptr, Value::Pointer(_), f, "pointer");
 
                 let ptr = ptr.as_pointer().expect("never happens");
                 self.store.store_value(*ptr, e);
+                Ok(None)
             }
             StatementKind::Output(e) => match &e.kind {
                 ExpressionKind::Indentifier(x) => {
                     let var = report_undefined!(self.env.var(x), e, x);
-                    println!("{:?}", self.val_to_str(self.store.read_value(var)))
+                    println!("{:?}", self.val_to_str(self.store.read_value(var)));
+                    Ok(None)
                 }
                 _ => {
-                    let v = self.exec_rhs_expr(e)?;
+                    let v = bail_on_void!(self.exec_rhs_expr(e)?, e);
                     println!("{}", self.val_to_str(&v));
+                    Ok(None)
                 }
             },
             StatementKind::If(iff) => {
@@ -289,40 +312,40 @@ impl<'a> Interpreter<'a> {
 
                 let x = *guard.as_number().expect("never happens");
                 if x == 1 {
-                    self.exec_statement(iff.then.as_ref())?;
+                    ret_if_val!(self.exec_statement(iff.then.as_ref()));
                 } else if let Some(els) = iff.elsee.as_ref() {
-                    self.exec_statement(els)?;
+                    ret_if_val!(self.exec_statement(els));
                 }
+                Ok(None)
             }
             StatementKind::Compound(x) => {
                 for i in x {
-                    self.exec_statement(i)?;
+                    ret_if_val!(self.exec_statement(i));
                 }
+                Ok(None)
             }
-            StatementKind::Function(_) => {
-                panic!("")
-            }
-            StatementKind::Return(_) => {
-                panic!("")
-            }
-            StatementKind::While(wl) => loop {
-                let e = self.exec_rhs_expr(&wl.guard)?;
+            StatementKind::Function(_) => Ok(None),
+            StatementKind::Return(e) => Ok(Some(bail_on_void!(self.exec_rhs_expr(e)?, e))),
+            StatementKind::While(wl) => {
+                loop {
+                    let e = bail_on_void!(self.exec_rhs_expr(&wl.guard)?, wl.guard);
 
-                failable_match!(e, Value::Number(_), f, "number");
+                    failable_match!(e, Value::Number(_), f, "number");
 
-                let e = *e.as_number().expect("never happens");
-                if e == 1 {
-                    self.exec_statement(&wl.body)?;
-                } else {
-                    break;
+                    let e = *e.as_number().expect("never happens");
+                    if e == 1 {
+                        ret_if_val!(self.exec_statement(&wl.body));
+                    } else {
+                        break;
+                    }
                 }
-            },
+
+                Ok(None)
+            }
         }
-
-        Ok(())
     }
 
-    fn run_func(&mut self, f: FunctionPoiner, args: Vec<Value>) -> Result<Value> {
+    fn run_func(&mut self, f: FunctionPoiner, args: Vec<Value>) -> Result<Option<Value>> {
         let f = self.ast.function_by_index(f).unwrap();
 
         self.env.scope_begin();
@@ -343,17 +366,14 @@ impl<'a> Interpreter<'a> {
             }
         }
 
+        let mut ret = None;
+
         if let Some(body) = f.body() {
-            self.exec_statement(body)?;
+            ret = self.exec_statement(body)?;
         }
 
-        if let StatementKind::Return(ref x) = f.ret_e().kind {
-            let res = self.exec_rhs_expr(x.as_ref())?;
-            self.env.scope_end();
-            Ok(res)
-        } else {
-            unreachable!()
-        }
+        self.env.scope_end();
+        Ok(ret)
     }
 }
 
@@ -373,6 +393,7 @@ mod test {
         for_each_prog_parsed(".", &r, |caps, ast, path| {
             let num = caps[1].parse::<i64>().unwrap();
 
+            println!("{:?}", path);
             let int = Interpreter::new(ast);
             let res = int.run().unwrap();
 

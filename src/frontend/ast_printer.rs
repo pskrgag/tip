@@ -145,6 +145,9 @@ impl<'a> AstPriner<'a> {
 
     fn dump_statement<W: Write>(&self, st: &Statement, buffer: &mut W) {
         match &st.kind {
+            StatementKind::Expression(e) => {
+                self.dump_expression(e, buffer);
+            }
             StatementKind::If(iff) => {
                 let _guard = self.new_node("IfStatement:", buffer);
 
@@ -216,8 +219,5 @@ impl<'a> AstPriner<'a> {
         if let Some(body) = f.body() {
             self.dump_statement(body, buffer);
         }
-
-        let _g = self.new_node("ReturnStatement:", buffer);
-        self.dump_statement(f.ret_e(), buffer);
     }
 }

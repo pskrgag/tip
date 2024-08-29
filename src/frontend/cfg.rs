@@ -160,7 +160,7 @@ impl<'ast> Cfg<'ast> {
             self.proccess_statement(body);
         }
 
-        self.proccess_statement(self.f.ret_e());
+        // self.proccess_statement(self.f.ret_e());
     }
 }
 

@@ -191,7 +191,7 @@ impl TypeAnalysis {
                         self.unify(&t, expected),
                         called,
                         "Cannot pass {:?} to function expecting {:?}",
-                        t,
+                        self.format_infer_type(&t),
                         self.format_infer_type(expected),
                     );
                 }
@@ -234,51 +234,56 @@ impl TypeAnalysis {
         }
     }
 
-    fn unify(&mut self, t: &Type, t1: &Type) -> Result<(), ()> {
+    fn unify_options(&mut self, t: Option<Type>, t1: Option<Type>) -> Result<Option<Type>> {
+        match (t, t1) {
+            (Some(t), Some(t1)) => {
+                self.unify(&t, &t1)?;
+                Ok(Some(t))
+            }
+            (Some(t), None) | (None, Some(t)) => Ok(Some(t)),
+            _ => Ok(None),
+        }
+    }
+
+    fn unify(&mut self, t: &Type, t1: &Type) -> Result<()> {
         match (t, t1) {
             (Type::Unbound(x), Type::Unbound(x1)) => self.solver.unify_var_var(*x, *x1),
             (t, Type::Unbound(x1)) | (Type::Unbound(x1), t) => {
-                self.solver.unify_var_val(*x1, Some(t.clone()))
+                // Infer unknown type first
+                if let Some(t1) = self.solver.get_value(*x1) {
+                    self.unify(t, &t1)
+                } else {
+                    self.solver.unify_var_val(*x1, Some(t.clone()))
+                }
             }
             (Type::Record(x), Type::Record(y)) => {
                 for (l, r) in std::iter::zip(x, y) {
                     if l.0 == r.0 {
                         self.unify(&l.1, &r.1)?;
                     } else {
-                        return Err(());
+                        bail!("");
                     }
                 }
 
                 Ok(())
             }
             (Type::Pointer(x1), Type::Pointer(x2)) => self.unify(x1, x2),
-            (Type::Function(ret1, args1), Type::Function(ret2, args2)) => {
-                self.unify(ret1, ret2)?;
-
-                if args1.len() == args2.len() {
-                    std::iter::zip(args1, args2).try_fold(vec![], |mut acc, (x, y)| {
-                        let res = self.unify(x, y)?;
-                        acc.push(res);
-                        Ok(acc)
-                    })?;
-
-                    Ok(())
-                } else {
-                    Err(())
-                }
-            }
             (t, t1) => {
                 if t == t1 {
                     Ok(())
                 } else {
-                    Err(())
+                    bail!("");
                 }
             }
         }
     }
 
-    fn proccess_stmt(&mut self, s: &Statement) -> Result<()> {
+    fn proccess_stmt(&mut self, s: &Statement) -> Result<Option<Type>> {
         match &s.kind {
+            StatementKind::Expression(x) => {
+                self.infer(x)?;
+                Ok(None)
+            }
             StatementKind::Assign(assign) => {
                 let lhs = self.infer(assign.lhs.as_ref())?;
                 let rhs = self.infer(assign.rhs.as_ref())?;
@@ -290,20 +295,34 @@ impl TypeAnalysis {
                     rhs,
                     lhs
                 );
-                Ok(())
+                Ok(None)
             }
             StatementKind::Compound(x) => {
+                let mut t = None;
+
                 for i in x {
-                    self.proccess_stmt(i.as_ref())?;
+                    if let Some(new) = self.proccess_stmt(i.as_ref())? {
+                        if let Some(t) = &t {
+                            crate::failable!(
+                                self.unify(t, &new),
+                                i,
+                                "Cannot have different return types for function: {:?} {:?}",
+                                self.format_infer_type(&t),
+                                self.format_infer_type(&new),
+                            );
+                        } else {
+                            t = Some(new);
+                        }
+                    }
                 }
 
-                Ok(())
+                Ok(t)
             }
             StatementKind::Output(x) => {
                 let t = self.infer(x.as_ref())?;
 
                 crate::failable!(self.unify(&t, &Type::Int), s, "Cannot output type {:?}", t,);
-                Ok(())
+                Ok(None)
             }
             StatementKind::While(wh) => {
                 let t = self.infer(wh.guard.as_ref())?;
@@ -327,15 +346,17 @@ impl TypeAnalysis {
                     t
                 );
 
-                self.proccess_stmt(iff.then.as_ref())?;
+                let t = self.proccess_stmt(iff.then.as_ref())?;
 
                 if let Some(elsee) = iff.elsee.as_ref() {
-                    self.proccess_stmt(elsee.as_ref())
+                    let u = self.proccess_stmt(elsee.as_ref())?;
+                    self.unify_options(t, u)
                 } else {
-                    Ok(())
+                    Ok(None)
                 }
             }
-            StatementKind::Function(_) | StatementKind::Return(_) => panic!("Wrong call"),
+            StatementKind::Return(x) => Ok(Some(self.infer(x)?)),
+            StatementKind::Function(_) => panic!("Wrong call"),
         }
     }
 
@@ -366,8 +387,12 @@ impl TypeAnalysis {
 
         self.env.add_global(f.name().clone(), function_key);
 
+        let mut ret_t = Type::Void;
+
         if let Some(b) = f.body() {
-            self.proccess_stmt(b)?;
+            if let Some(new_ret) = self.proccess_stmt(b)? {
+                ret_t = new_ret;
+            }
         }
 
         f.type_params(|x| {
@@ -381,40 +406,36 @@ impl TypeAnalysis {
                 .unwrap()
         });
 
-        let ret = if f.name() == "main" {
-            if let StatementKind::Return(ref x) = f.ret_e().kind {
-                let t = self.infer(x.as_ref())?;
-
-                crate::failable!(
-                    self.unify(&t, &Type::Int),
-                    f.ret_e(),
-                    "{:?} cannot be return type of 'main'",
-                    t
-                );
-
-                t
-            } else {
-                unreachable!()
+        if f.name() == "main" {
+            // HACK FOR NOW
+            struct Hack {
+                pub loc: crate::frontend::source::SourceLoc,
             }
-        } else if let StatementKind::Return(ref x) = f.ret_e().kind {
-            let t = self.infer(x.as_ref())?;
+            let h = Hack {
+                loc: crate::frontend::source::SourceLoc { start: 0, end: 0 },
+            };
 
+            crate::failable!(
+                self.unify(&ret_t, &Type::Int),
+                h,
+                "{:?} cannot be return type of 'main'",
+                ret_t
+            );
+        } else {
             if let Type::Function(_, y) = self.solver.get_value(function_key).unwrap() {
-                self.solver
-                    .update_value(function_key, Some(Type::Function(Box::new(t.clone()), y)));
+                self.solver.update_value(
+                    function_key,
+                    Some(Type::Function(Box::new(ret_t.clone()), y)),
+                );
             } else {
                 panic!();
             }
+        }
 
-            t
-        } else {
-            unreachable!()
-        };
-
-        if let Type::Unbound(x) = ret {
+        if let Type::Unbound(x) = ret_t {
             f.type_retval(self.solver.get_value(x).unwrap());
         } else {
-            f.type_retval(ret);
+            f.type_retval(ret_t);
         }
 
         self.env.clear_local();
