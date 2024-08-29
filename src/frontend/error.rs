@@ -41,6 +41,14 @@ macro_rules! failable_match {
     };
 }
 
+#[macro_export]
+macro_rules! bail_with_error {
+    ($node:expr, $($arg:tt)*) => {
+        report_error($node.loc, format!($($arg)*), "");
+        anyhow::bail!("")
+    };
+}
+
 const SOURCE_OFFSET: usize = 6;
 
 pub fn report_error<S: AsRef<str>>(wh: SourceLoc, reason: S, meta: &str) {

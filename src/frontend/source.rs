@@ -50,10 +50,6 @@ impl SourceFile {
         self.data.as_str()
     }
 
-    pub fn loc_to_lex(&self, loc: SourceLoc) -> &str {
-        &self.data[loc.start as usize..loc.end as usize]
-    }
-
     pub fn loc_to_line(&self, loc: SourceLoc) -> (&str, SourceLoc, usize) {
         let prev = &self.data[..loc.start as usize];
         let next = &self.data[loc.end as usize..];
@@ -75,7 +71,7 @@ impl SourceFile {
                 start: loc.start - prevline as u32,
                 end: loc.end - prevline as u32,
             },
-            lines + 1
+            lines + 1,
         )
     }
 

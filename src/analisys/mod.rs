@@ -3,8 +3,6 @@ use anyhow::Result;
 
 pub mod typing;
 
-pub type AnalisysResult<'ast> = Result<(), ()>;
-
 pub trait AstAnalisys {
     fn run(&mut self, f: &mut Ast) -> Result<()>;
 }

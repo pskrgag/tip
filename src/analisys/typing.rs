@@ -6,7 +6,7 @@ use crate::frontend::{
     Ast,
 };
 use crate::solvers::union::{UnionKey, UnionSolver};
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Result};
 use std::collections::HashMap;
 
 impl UnionKey for TypeVariable {
@@ -81,6 +81,15 @@ impl TypeAnalysis {
             env: Enviroment::new(),
             solver: UnionSolver::new(),
         }
+    }
+
+    fn format_infer_type(&self, t: &Type) -> String {
+        let t = match t {
+            Type::Unbound(x) => &self.solver.get_value(*x).unwrap(),
+            _ => t,
+        };
+
+        format!("{:?}", t)
     }
 
     fn infer(&mut self, s: &Expression) -> Result<Type> {
@@ -163,21 +172,31 @@ impl TypeAnalysis {
                     _ => self.infer(call.call.as_ref()).unwrap(),
                 };
 
-                let v = call
-                    .args
-                    .iter()
-                    .map(|x| self.infer(x).unwrap())
-                    .collect::<Vec<_>>();
-
-                let ret = self.solver.add(None);
-
-                crate::failable!(
-                    self.unify(&t, &Type::Function(Box::new(Type::Unbound(ret)), v)),
+                crate::failable_match!(
+                    t,
+                    Type::Function(_, _),
                     s,
-                    "todo"
+                    "Cannot call non-function object"
                 );
+                let (ret, args) = t.as_function().unwrap();
 
-                self.solver.get_value(ret).context("")
+                if args.len() != call.args.len() {
+                    crate::bail_with_error!(s, "Cannot call function with wrong number of arguments. Expected: {}, but got {}", args.len(), call.args.len());
+                }
+
+                for (called, expected) in std::iter::zip(call.args.iter(), args) {
+                    let t = self.infer(called)?;
+
+                    crate::failable!(
+                        self.unify(&t, expected),
+                        called,
+                        "Cannot pass {:?} to function expecting {:?}",
+                        t,
+                        self.format_infer_type(expected),
+                    );
+                }
+
+                Ok(*ret.clone())
             }
             ExpressionKind::Record(rec) => {
                 let res = rec
@@ -219,12 +238,7 @@ impl TypeAnalysis {
         match (t, t1) {
             (Type::Unbound(x), Type::Unbound(x1)) => self.solver.unify_var_var(*x, *x1),
             (t, Type::Unbound(x1)) | (Type::Unbound(x1), t) => {
-                // Firstly see if we know smth about unbound type
-                if let Some(t) = self.solver.get_value(*x1) {
-                    self.unify(&t, t1)
-                } else {
-                    self.solver.unify_var_val(*x1, Some(t.clone()))
-                }
+                self.solver.unify_var_val(*x1, Some(t.clone()))
             }
             (Type::Record(x), Type::Record(y)) => {
                 for (l, r) in std::iter::zip(x, y) {
@@ -257,7 +271,6 @@ impl TypeAnalysis {
                 if t == t1 {
                     Ok(())
                 } else {
-                    println!("Wrong types {:?} {:?}", t, t1);
                     Err(())
                 }
             }

@@ -6,8 +6,9 @@ f(x) {
 }
 
 main() {
-    var n;
+    var n, x;
 
-    n = f(n);
+    n = 10;
+    x = f(n);
     return n;
 }

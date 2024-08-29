@@ -1,9 +1,9 @@
+use crate::frontend::source::*;
 use crate::frontend::Ast;
 use lalrpop_util::lalrpop_mod;
 use regex::{Captures, Regex};
 use std::fs;
 use std::path::Path;
-use crate::frontend::source::*;
 
 lalrpop_mod!(pub tip);
 

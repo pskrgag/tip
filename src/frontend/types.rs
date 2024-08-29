@@ -1,6 +1,6 @@
 use crate::frontend::Indentifier;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use enum_as_inner::EnumAsInner;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub type TypeVariable = usize;
 
