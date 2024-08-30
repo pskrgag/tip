@@ -76,7 +76,7 @@ impl Env {
     }
 
     pub fn var(&self, name: &Indentifier) -> Result<Pointer> {
-        Ok(self.maybe_var(name).context("")?)
+        self.maybe_var(name).context("")
     }
 }
 
@@ -160,7 +160,7 @@ impl<'a> Interpreter<'a> {
                     failable_match!(ptr, Value::Pointer(_), x, "Expected pointer");
                     let ptr = *ptr.as_pointer().unwrap();
 
-                    report_uninitialized!(self.store.read_value(ptr).clone(), x).clone()
+                    report_uninitialized!(self.store.read_value(ptr), x).clone()
                 }
                 _ => {
                     bail_with_error!(e, "Unary {:?} cannot be used as lhs", x);

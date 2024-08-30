@@ -127,7 +127,7 @@ impl<T: UnionKey> UnionSolver<T> {
 impl<T: UnionKey + Debug> Debug for UnionSolver<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for (i, val) in self.storage.iter().enumerate() {
-            write!(f, "{i}: {:?} -> {:?}\n", val.value, val.parent)?;
+            writeln!(f, "{i}: {:?} -> {:?}", val.value, val.parent)?;
         }
 
         Ok(())

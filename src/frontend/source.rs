@@ -10,7 +10,7 @@ pub struct SourceLoc {
 #[macro_export]
 macro_rules! loc {
     ($l:expr, $r:expr) => {
-        crate::frontend::source::SourceLoc::new($l as u32, $r as u32)
+        $crate::frontend::source::SourceLoc::new($l as u32, $r as u32)
     };
 }
 
@@ -23,7 +23,7 @@ impl SourceLoc {
 static mut CURRENT_FILE: Option<SourceFile> = None;
 
 pub fn get_current_source() -> &'static SourceFile {
-    unsafe { &CURRENT_FILE.as_ref().unwrap() }
+    unsafe { CURRENT_FILE.as_ref().unwrap() }
 }
 
 pub fn set_current_source(f: SourceFile) {
@@ -46,7 +46,7 @@ impl SourceFile {
         })
     }
 
-    pub fn data<'a>(&'a self) -> &'a str {
+    pub fn data(&self) -> &str {
         self.data.as_str()
     }
 
@@ -54,8 +54,8 @@ impl SourceFile {
         let prev = &self.data[..loc.start as usize];
         let next = &self.data[loc.end as usize..];
 
-        let prevline = prev.rfind('\n').or(Some(0)).unwrap();
-        let nextline = next.find('\n').or(Some(0)).unwrap();
+        let prevline = prev.rfind('\n').unwrap_or(0);
+        let nextline = next.find('\n').unwrap_or(0);
 
         let prevline = if prevline == 0 {
             prevline

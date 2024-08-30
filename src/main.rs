@@ -44,9 +44,8 @@ struct Args {
 
 fn main() {
     // The way to prevent anyhow from writing shit to console
-    match run() {
-        Err(_) => std::process::exit(-1 as i32),
-        _ => {}
+    if run().is_err() {
+        std::process::exit(-1_i32)
     }
 }
 

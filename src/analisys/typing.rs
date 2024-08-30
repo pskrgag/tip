@@ -338,7 +338,7 @@ impl TypeAnalysis {
                                 self.unify(t, &new),
                                 i,
                                 "Cannot have different return types for function: {:?} {:?}",
-                                self.format_infer_type(&t),
+                                self.format_infer_type(t),
                                 self.format_infer_type(&new),
                             );
                         } else {
@@ -457,15 +457,11 @@ impl TypeAnalysis {
                 "{:?} cannot be return type of 'main'",
                 ret_t
             );
-        } else {
-            if let Type::Function(_, y) = self.solver.get_value(function_key).unwrap() {
-                self.solver.update_value(
-                    function_key,
-                    Some(Type::Function(Box::new(ret_t.clone()), y)),
-                );
-            } else {
-                panic!();
-            }
+        } else if let Type::Function(_, y) = self.solver.get_value(function_key).unwrap() {
+            self.solver.update_value(
+                function_key,
+                Some(Type::Function(Box::new(ret_t.clone()), y)),
+            );
         }
 
         if let Type::Unbound(x) = ret_t {
