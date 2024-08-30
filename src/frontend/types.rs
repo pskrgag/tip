@@ -1,10 +1,7 @@
 use crate::frontend::Indentifier;
 use enum_as_inner::EnumAsInner;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub type TypeVariable = usize;
-
-static UNBOUND_CNT: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EnumAsInner)]
 pub enum Type {
@@ -17,9 +14,15 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn new_unbound() -> Self {
-        let count = UNBOUND_CNT.fetch_add(1, Ordering::Relaxed);
-
-        Self::Unbound(count)
+    pub fn is_poly(&self) -> bool {
+        match self {
+            Type::Int | Type::Void => false,
+            Type::Unbound(_) => true,
+            Type::Function(ret, args) => {
+                ret.is_poly() || args.iter().fold(false, |accum, x| accum | x.is_poly())
+            }
+            Type::Pointer(x) => x.is_poly(),
+            Type::Record(x) => x.iter().fold(false, |accum, x| accum | x.1.is_poly()),
+        }
     }
 }

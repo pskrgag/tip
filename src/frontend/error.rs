@@ -2,6 +2,27 @@ use super::source::*;
 use colored::*;
 
 #[macro_export]
+macro_rules! report_undefined {
+    ($e:expr, $node:tt, $name:expr) => {
+        crate::failable!($e, $node, "Use of undefined variable {:?}", $name)
+    };
+}
+
+#[macro_export]
+macro_rules! report_undefined_opt {
+    ($e:expr, $node:tt, $name:expr) => {
+        crate::failable_opt!($e, $node, "Use of undefined variable {:?}", $name)
+    };
+}
+
+#[macro_export]
+macro_rules! report_uninitialized {
+    ($e:expr, $node:tt) => {
+        crate::failable_opt!($e, $node, "Use of undefined variable")
+    };
+}
+
+#[macro_export]
 macro_rules! failable_opt {
     ($e:expr, $node:expr, $($arg:tt)*) => {
         if let Some(v) = $e {

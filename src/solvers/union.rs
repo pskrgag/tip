@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use std::fmt::Debug;
+use std::fmt::Formatter;
 
 pub trait UnionKey: PartialEq + Eq + Clone {
     type Value: PartialEq + Clone + Debug;
@@ -29,6 +30,7 @@ impl<K: UnionKey> UnionValue<K> {
     }
 }
 
+#[derive(Clone)]
 pub struct UnionSolver<T: UnionKey> {
     storage: Vec<UnionValue<T>>,
 }
@@ -116,7 +118,17 @@ impl<T: UnionKey> UnionSolver<T> {
         let v2 = self.value(par2);
 
         T::unify(&v1.value, &v2.value).ok_or(anyhow!(""))?;
-        self.union(key1, key2);
+        self.union(par1.clone(), par2.clone());
+
+        Ok(())
+    }
+}
+
+impl<T: UnionKey + Debug> Debug for UnionSolver<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        for (i, val) in self.storage.iter().enumerate() {
+            write!(f, "{i}: {:?} -> {:?}\n", val.value, val.parent)?;
+        }
 
         Ok(())
     }

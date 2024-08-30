@@ -20,6 +20,8 @@ pub fn for_each_prog_parsed<P: AsRef<str>, F: Fn(&Captures, &mut Ast, &Path)>(
             continue;
         }
 
+        println!("{:?}", path);
+
         let code = fs::read_to_string(&path).unwrap();
         let source = SourceFile::new(&path).unwrap();
 

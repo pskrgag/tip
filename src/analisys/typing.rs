@@ -73,6 +73,7 @@ impl Enviroment {
 pub struct TypeAnalysis {
     solver: UnionSolver<TypeVariable>,
     env: Enviroment,
+    cp: Option<UnionSolver<TypeVariable>>,
 }
 
 impl TypeAnalysis {
@@ -80,6 +81,7 @@ impl TypeAnalysis {
         Self {
             env: Enviroment::new(),
             solver: UnionSolver::new(),
+            cp: None,
         }
     }
 
@@ -95,7 +97,12 @@ impl TypeAnalysis {
     fn infer(&mut self, s: &Expression) -> Result<Type> {
         match &s.kind {
             ExpressionKind::Indentifier(x) => {
-                let val = self.env.find_local(x).unwrap();
+                let val = crate::report_undefined_opt!(
+                    self.env.find_local(x).or(self.env.find_glocal(x)),
+                    s,
+                    x
+                );
+
                 if let Some(x) = self.solver.get_value(val) {
                     Ok(x)
                 } else {
@@ -104,8 +111,8 @@ impl TypeAnalysis {
             }
             ExpressionKind::Number(_) | ExpressionKind::Input => Ok(Type::Int),
             ExpressionKind::Binary(b) => {
-                let lhs = self.infer(b.lhs.as_ref()).unwrap();
-                let rhs = self.infer(b.rhs.as_ref()).unwrap();
+                let lhs = self.infer(b.lhs.as_ref())?;
+                let rhs = self.infer(b.rhs.as_ref())?;
 
                 crate::failable!(
                     self.unify(&lhs, &Type::Int),
@@ -127,12 +134,16 @@ impl TypeAnalysis {
             }
             ExpressionKind::Unary(x) => match x.as_ref() {
                 Unary::Addressof(name) => {
-                    let tp = self.env.find_local(name).unwrap();
-                    let tp = self.solver.get_value(tp).unwrap();
+                    let tp = crate::report_undefined_opt!(
+                        self.env.find_local(name).or(self.env.find_glocal(name)),
+                        s,
+                        name
+                    );
+                    let tp = self.solver.get_value(tp).unwrap_or(Type::Unbound(tp));
                     Ok(Type::Pointer(Box::new(tp)))
                 }
                 Unary::Deref(e) => {
-                    let tp = self.infer(e).unwrap();
+                    let tp = self.infer(e)?;
                     let new_type = self.solver.add(None);
 
                     crate::failable!(
@@ -169,8 +180,12 @@ impl TypeAnalysis {
                         );
                         self.solver.get_value(var).unwrap()
                     }
-                    _ => self.infer(call.call.as_ref()).unwrap(),
+                    _ => self.infer(call.call.as_ref())?,
                 };
+
+                if t.is_poly() {
+                    self.cp = Some(self.solver.clone());
+                }
 
                 crate::failable_match!(
                     t,
@@ -181,7 +196,9 @@ impl TypeAnalysis {
                 let (ret, args) = t.as_function().unwrap();
 
                 if args.len() != call.args.len() {
-                    crate::bail_with_error!(s, "Cannot call function with wrong number of arguments. Expected: {}, but got {}", args.len(), call.args.len());
+                    crate::bail_with_error!(
+                        s, "Cannot call function with wrong number of arguments. Expected: {}, but got {}",
+                        args.len(), call.args.len());
                 }
 
                 for (called, expected) in std::iter::zip(call.args.iter(), args) {
@@ -196,7 +213,20 @@ impl TypeAnalysis {
                     );
                 }
 
-                Ok(*ret.clone())
+                let ret = if t.is_poly() {
+                    let r = if let Type::Unbound(x) = ret.as_ref() {
+                        self.solver.get_value(*x).unwrap()
+                    } else {
+                        (**ret).clone()
+                    };
+
+                    self.solver = self.cp.take().unwrap();
+                    r
+                } else {
+                    (**ret).clone()
+                };
+
+                Ok(ret)
             }
             ExpressionKind::Record(rec) => {
                 let res = rec
@@ -247,6 +277,7 @@ impl TypeAnalysis {
 
     fn unify(&mut self, t: &Type, t1: &Type) -> Result<()> {
         match (t, t1) {
+            (Type::Void, _) | (_, Type::Void) => bail!(""),
             (Type::Unbound(x), Type::Unbound(x1)) => self.solver.unify_var_var(*x, *x1),
             (t, Type::Unbound(x1)) | (Type::Unbound(x1), t) => {
                 // Infer unknown type first
@@ -396,14 +427,19 @@ impl TypeAnalysis {
         }
 
         f.type_params(|x| {
+            let unbound = self.env.find_local(x).unwrap();
+
             self.solver
-                .get_value(self.env.find_local(x).unwrap())
-                .unwrap()
+                .get_value(unbound)
+                .unwrap_or(Type::Unbound(unbound))
         });
+
         f.type_local(|x| {
+            let unbound = self.env.find_local(x).unwrap();
+
             self.solver
-                .get_value(self.env.find_local(x).unwrap())
-                .unwrap()
+                .get_value(unbound)
+                .unwrap_or(Type::Unbound(unbound))
         });
 
         if f.name() == "main" {
@@ -433,7 +469,11 @@ impl TypeAnalysis {
         }
 
         if let Type::Unbound(x) = ret_t {
-            f.type_retval(self.solver.get_value(x).unwrap());
+            if let Some(x) = self.solver.get_value(x) {
+                f.type_retval(x);
+            } else {
+                f.type_retval(ret_t);
+            }
         } else {
             f.type_retval(ret_t);
         }

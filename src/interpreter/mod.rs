@@ -19,18 +19,6 @@ enum Value {
     Null,
 }
 
-macro_rules! report_undefined {
-    ($e:expr, $node:tt, $name:expr) => {
-        failable!($e, $node, "Use of undefined variable {:?}", $name)
-    };
-}
-
-macro_rules! report_uninitialized {
-    ($e:expr, $node:tt) => {
-        failable_opt!($e, $node, "Use of undefined variable")
-    };
-}
-
 macro_rules! report_invalid_int {
     ($e:expr, $node:expr) => {
         match $e {
