@@ -25,6 +25,24 @@ macro_rules! report_undefined {
     };
 }
 
+macro_rules! report_uninitialized {
+    ($e:expr, $node:tt) => {
+        failable_opt!($e, $node, "Use of undefined variable")
+    };
+}
+
+macro_rules! report_invalid_int {
+    ($e:expr, $node:expr) => {
+        match $e {
+            Err(x) => match x {
+                MapToIntRes::Uninitialized => { bail_with_error!($node, "Use of undefined variable"); },
+                MapToIntRes::NaN => { bail_with_error!($node, "Expected integer"); },
+            },
+            Ok(x) => x,
+        }
+    };
+}
+
 macro_rules! ret_if_val {
     ($e:expr) => {
         if let ret @ Some(_) = $e? {
@@ -82,19 +100,25 @@ impl Store {
         res
     }
 
-    fn read_value(&self, ptr: Pointer) -> &Value {
+    fn read_value(&self, ptr: Pointer) -> Option<&Value> {
         let res = &self.0[ptr];
 
         if matches!(res, Value::Undefined) {
-            panic!("Use of uninitialized variable");
+            None
+        } else {
+            Some(res)
         }
-
-        res
     }
 
     fn store_value(&mut self, ptr: Pointer, v: Value) {
         self.0[ptr] = v;
     }
+}
+
+#[derive(PartialEq, Eq)]
+enum MapToIntRes {
+    Uninitialized,
+    NaN,
 }
 
 impl<'a> Interpreter<'a> {
@@ -118,19 +142,19 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn map_to_int(&self, v: Value) -> i64 {
+    fn map_to_int(&self, v: Value) -> Result<i64, MapToIntRes> {
         match v {
             Value::Pointer(x) => {
-                let v = self.store.read_value(x);
+                let v = self.store.read_value(x).ok_or(MapToIntRes::Uninitialized)?;
 
                 if let Value::Number(x) = v {
-                    *x
+                    Ok(*x)
                 } else {
-                    panic!("Expected number");
+                    Err(MapToIntRes::NaN)
                 }
             }
-            Value::Number(x) => x,
-            _ => panic!("Unexpected shit"),
+            Value::Number(x) => Ok(x),
+            _ => Err(MapToIntRes::NaN),
         }
     }
 
@@ -145,24 +169,25 @@ impl<'a> Interpreter<'a> {
                 Unary::Deref(x) => {
                     let ptr = self.exec_lhs_expr(x)?;
 
-                    if let Value::Pointer(ptr) = ptr {
-                        self.store.read_value(ptr).clone()
-                    } else {
-                        panic!()
-                    }
+                    failable_match!(ptr, Value::Pointer(_), x, "Expected pointer");
+                    let ptr = *ptr.as_pointer().unwrap();
+
+                    report_uninitialized!(self.store.read_value(ptr).clone(), x).clone()
                 }
-                _ => panic!("Unary {:?} cannot be used as lhs", x),
+                _ => {
+                    bail_with_error!(e, "Unary {:?} cannot be used as lhs", x);
+                }
             },
             ExpressionKind::Member(expr, id) => {
                 let e = bail_on_void!(self.exec_rhs_expr(expr)?, e);
 
-                if let Value::Record(x) = e {
-                    Value::Pointer(*x.get(id).unwrap())
-                } else {
-                    panic!()
-                }
+                failable_match!(e, Value::Record(_), expr, "Expected pointer");
+                let x = e.as_record().unwrap();
+                Value::Pointer(*x.get(id).unwrap())
             }
-            _ => panic!("{:?} Cannot be an lhs expression", e),
+            _ => {
+                bail_with_error!(e, "{:?} cannot be used as lhs", e);
+            }
         })
     }
 
@@ -173,7 +198,7 @@ impl<'a> Interpreter<'a> {
                     Some(Value::Function(f))
                 } else {
                     let var = report_undefined!(self.env.var(x), e, x);
-                    Some(self.store.read_value(var).clone())
+                    Some(report_uninitialized!(self.store.read_value(var), e).clone())
                 }
             }
             ExpressionKind::Number(x) => Some(Value::Number(*x)),
@@ -181,8 +206,8 @@ impl<'a> Interpreter<'a> {
                 let e1 = bail_on_void!(self.exec_rhs_expr(b.lhs.as_ref())?, b.lhs);
                 let e2 = bail_on_void!(self.exec_rhs_expr(b.rhs.as_ref())?, b.rhs);
 
-                let e1 = self.map_to_int(e1);
-                let e2 = self.map_to_int(e2);
+                let e1 = report_invalid_int!(self.map_to_int(e1), b.lhs);
+                let e2 = report_invalid_int!(self.map_to_int(e2), b.rhs);
 
                 Some(Value::Number(match b.op {
                     BinaryOp::Mul => e1 * e2,
@@ -201,11 +226,10 @@ impl<'a> Interpreter<'a> {
                 Unary::Deref(x) => {
                     let ptr = bail_on_void!(self.exec_rhs_expr(x)?, x);
 
-                    if let Value::Pointer(ptr) = ptr {
-                        Some(self.store.read_value(ptr).clone())
-                    } else {
-                        panic!("Expected pointer, but got {:?}", ptr)
-                    }
+                    failable_match!(ptr, Value::Pointer(_), x, "Expected pointer");
+                    let ptr = *ptr.as_pointer().unwrap();
+
+                    Some(report_uninitialized!(self.store.read_value(ptr), x).clone())
                 }
             },
             ExpressionKind::Call(call) => {
@@ -257,14 +281,12 @@ impl<'a> Interpreter<'a> {
                 ))
             }
             ExpressionKind::Null => Some(Value::Null),
-            ExpressionKind::Member(x, id) => {
-                let e = bail_on_void!(self.exec_rhs_expr(x)?, e);
+            ExpressionKind::Member(mem, id) => {
+                let e = bail_on_void!(self.exec_rhs_expr(mem)?, e);
+                failable_match!(e, Value::Record(_), mem, "Expected Record type");
 
-                if let Value::Record(x) = e {
-                    Some(self.store.read_value(*x.get(id).unwrap()).clone())
-                } else {
-                    panic!("Wtf {:?} {:?}", e, x)
-                }
+                let x = e.as_record().unwrap();
+                Some(report_uninitialized!(self.store.read_value(*x.get(id).unwrap()), mem).clone())
             }
         })
     }
@@ -296,7 +318,10 @@ impl<'a> Interpreter<'a> {
             StatementKind::Output(e) => match &e.kind {
                 ExpressionKind::Indentifier(x) => {
                     let var = report_undefined!(self.env.var(x), e, x);
-                    println!("{:?}", self.val_to_str(self.store.read_value(var)));
+                    println!(
+                        "{:?}",
+                        self.val_to_str(report_uninitialized!(self.store.read_value(var), e))
+                    );
                     Ok(None)
                 }
                 _ => {
