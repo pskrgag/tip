@@ -139,7 +139,10 @@ impl<'ast> Cfg<'ast> {
                     self.proccess_statement(i);
                 }
             }
-            StatementKind::Assign(_) | StatementKind::Output(_) | StatementKind::Return(_) => {
+            StatementKind::Assign(_)
+            | StatementKind::Output(_)
+            | StatementKind::Return(_)
+            | StatementKind::Expression(_) => {
                 self.push_to_last_bb(f);
             }
             StatementKind::If(iff) => {
@@ -159,8 +162,6 @@ impl<'ast> Cfg<'ast> {
             self.new_bb();
             self.proccess_statement(body);
         }
-
-        // self.proccess_statement(self.f.ret_e());
     }
 }
 
@@ -179,7 +180,13 @@ impl<'ast> Debug for Cfg<'ast> {
         writeln!(f, "digraph Cfg {{")?;
 
         for (i, node) in self.nodes.iter().enumerate() {
-            writeln!(f, "{i} [label=\"{:?}\"]\n", node)?;
+            writeln!(f, "{i} [label=\"",)?;
+
+            for i in &node.stmt {
+                writeln!(f, "{}", i)?;
+            }
+
+            writeln!(f, "\"]\n")?;
         }
 
         for (i, node) in self.nodes.iter().enumerate() {

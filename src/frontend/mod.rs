@@ -103,7 +103,7 @@ pub enum ExpressionKind {
     Input,
 }
 
-#[derive(Debug, Clone, EnumAsInner)]
+#[derive(Clone, EnumAsInner, Debug)]
 pub enum StatementKind {
     Compound(Vec<Box<Statement>>),
     Assign(Box<Assign>),
@@ -337,6 +337,78 @@ impl Display for BinaryOp {
 impl std::cmp::PartialEq<str> for Indentifier {
     fn eq(&self, other: &str) -> bool {
         self.0 == other
+    }
+}
+
+impl std::fmt::Display for Statement {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self.kind {
+            StatementKind::Expression(x) => write!(f, "{}", x),
+            StatementKind::Compound(x) => {
+                for i in x {
+                    write!(f, "{i}")?
+                }
+                Ok(())
+            }
+            StatementKind::Assign(x) => write!(f, "{} = {}", x.lhs, x.rhs),
+            StatementKind::Output(x) => write!(f, "output {:?}", x),
+            StatementKind::If(x) => write!(f, "if {}", x.guard),
+            StatementKind::Return(x) => write!(f, "return {}", x),
+            StatementKind::Function(x) => write!(f, "fn {:?}", x),
+            StatementKind::While(x) => write!(f, "while {}", x.guard),
+        }
+    }
+}
+
+impl std::fmt::Display for Unary {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Unary::Deref(x) => write!(f, "*{}", x),
+            Unary::Addressof(x) => write!(f, "&{:?}", x),
+        }
+    }
+}
+
+impl std::fmt::Display for Record {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}: {}", self.id, self.expr)
+    }
+}
+
+impl std::fmt::Display for Expression {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self.kind {
+            ExpressionKind::Call(x) => {
+                let mut first = true;
+                write!(f, "{}(", x.call)?;
+
+                for i in &x.args {
+                    if !first {
+                        write!(f, ", ")?;
+                    }
+
+                    write!(f, "{i}")?;
+                    first = false;
+                }
+                write!(f, ")")
+            }
+            ExpressionKind::Binary(x) => write!(f, "{} {} {}", x.lhs, x.op, x.rhs),
+            ExpressionKind::Unary(x) => write!(f, "{x}"),
+            ExpressionKind::Number(x) => write!(f, "{x}"),
+            ExpressionKind::Indentifier(x) => write!(f, "{:?}", x),
+            ExpressionKind::Alloc(x) => write!(f, "alloc {x}"),
+            ExpressionKind::Record(x) => {
+                write!(f, "Record ")?;
+                for i in x {
+                    write!(f, "{i}")?;
+                }
+
+                Ok(())
+            }
+            ExpressionKind::Null => write!(f, "null"),
+            ExpressionKind::Member(e, x) => write!(f, "{e} {:?}", x),
+            ExpressionKind::Input => write!(f, "input"),
+        }
     }
 }
 
