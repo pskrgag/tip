@@ -89,7 +89,7 @@ pub struct Assign {
     pub rhs: Box<Expression>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EnumAsInner)]
 pub enum ExpressionKind {
     Binary(Box<Binary>),
     Unary(Box<Unary>),

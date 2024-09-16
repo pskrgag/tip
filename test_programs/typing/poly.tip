@@ -1,0 +1,16 @@
+// TEST-OK: typing
+
+f(x, y) {
+    *x = y;
+}
+
+main() {
+    var n, y, x;
+
+    f(n, 10);
+
+    y = &x;
+    f(&y, &n);
+
+    return **y;
+}

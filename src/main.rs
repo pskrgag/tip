@@ -1,5 +1,4 @@
 #![allow(clippy::vec_box)]
-#![feature(box_into_inner)]
 
 use anyhow::Result;
 use clap::Parser;
@@ -59,6 +58,12 @@ fn run() -> Result<()> {
 
     if !args.skip_analisys {
         let res = analisys::analyze_ast(&mut ast);
+        if res.is_err() {
+            println!("Cannot proccess futher because of previous error");
+            std::process::exit(-1)
+        }
+
+        let res = analisys::per_fn_dataflow(&mut ast);
         if res.is_err() {
             println!("Cannot proccess futher because of previous error");
             std::process::exit(-1)

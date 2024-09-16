@@ -1,0 +1,10 @@
+// TODO: add this?
+
+f(f, n) {
+   f(f, 10);
+}
+
+main() {
+   f(f, 10);
+   return 10;
+}

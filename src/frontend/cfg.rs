@@ -4,17 +4,24 @@ use std::fmt::{Debug, Formatter, Result};
 pub type CfgNodeHandle = usize;
 const INVALID_HANDLE: usize = CfgNodeHandle::MAX;
 
-struct CfgNode<'ast> {
+pub struct CfgNode<'ast> {
     stmt: Vec<&'ast Statement>,
-    pred: [CfgNodeHandle; 2],
+
+    pred: Vec<CfgNodeHandle>,
     succ: [CfgNodeHandle; 2],
+}
+
+#[derive(Debug)]
+pub struct CfgPostOrderIter<'ast> {
+    stack: Vec<(CfgNodeHandle, bool)>,
+    cfg: &'ast Cfg<'ast>,
 }
 
 impl<'ast> CfgNode<'ast> {
     pub fn new() -> Self {
         Self {
             stmt: Vec::new(),
-            pred: [INVALID_HANDLE; 2],
+            pred: Vec::with_capacity(3), // Expecting no more than 3
             succ: [INVALID_HANDLE; 2],
         }
     }
@@ -34,17 +41,27 @@ impl<'ast> CfgNode<'ast> {
     }
 
     pub fn push_pred(&mut self, handle: CfgNodeHandle) {
-        if self.pred[0] != INVALID_HANDLE {
-            assert!(self.pred[1] == INVALID_HANDLE);
+        self.pred.push(handle);
+    }
 
-            self.pred[1] = handle;
-        } else {
-            self.pred[0] = handle;
-        }
+    pub fn predecessors(&self) -> &[CfgNodeHandle] {
+        self.pred.as_slice()
     }
 
     pub fn successors(&self) -> &[CfgNodeHandle] {
-        &self.succ
+        if self.succ[0] != INVALID_HANDLE {
+            if self.succ[1] != INVALID_HANDLE {
+                &self.succ
+            } else {
+                &self.succ[..1]
+            }
+        } else {
+            &[]
+        }
+    }
+
+    pub fn stmts(&self) -> &[&Statement] {
+        self.stmt.as_slice()
     }
 }
 
@@ -62,6 +79,26 @@ impl<'ast> Cfg<'ast> {
 
         ret.build();
         ret
+    }
+
+    pub fn size(&self) -> usize {
+        self.nodes.len()
+    }
+
+    pub fn start(&self) -> CfgNodeHandle {
+        0
+    }
+
+    pub fn function(&self) -> &Function {
+        self.f
+    }
+
+    pub fn po_iter(&self) -> CfgPostOrderIter {
+        CfgPostOrderIter::new(self)
+    }
+
+    pub fn node(&self, h: CfgNodeHandle) -> &CfgNode {
+        &self.nodes[h]
     }
 
     fn new_bb(&mut self) -> CfgNodeHandle {
@@ -129,7 +166,6 @@ impl<'ast> Cfg<'ast> {
         self.nodes[next].push_pred(b);
 
         self.nodes[while_bb].push_succ(next);
-        self.nodes[b].push_succ(next);
     }
 
     fn proccess_statement(&mut self, f: &'ast Statement) {
@@ -165,6 +201,48 @@ impl<'ast> Cfg<'ast> {
     }
 }
 
+impl<'ast> CfgPostOrderIter<'ast> {
+    pub fn new(cfg: &'ast Cfg) -> Self {
+        let mut s = Self {
+            cfg,
+            stack: Vec::from([(0, false)]),
+        };
+
+        s.expand_top();
+        s
+    }
+
+    fn expand_top(&mut self) {
+        while let Some(node) = self.stack.last_mut() {
+            if node.1 {
+                break;
+            }
+
+            node.1 = true;
+            let node = self.cfg.node(node.0);
+            let succ = node.successors();
+
+            if succ.len() > 0 {
+                self.stack.push((succ[0], false));
+            }
+
+            if succ.len() > 1 {
+                self.stack.push((succ[1], false));
+            }
+        }
+
+        self.stack.reverse();
+    }
+}
+
+impl<'a> Iterator for CfgPostOrderIter<'a> {
+    type Item = CfgNodeHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.stack.pop().map(|x| x.0)
+    }
+}
+
 impl<'ast> Debug for CfgNode<'ast> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         for i in &self.stmt {
@@ -190,10 +268,13 @@ impl<'ast> Debug for Cfg<'ast> {
         }
 
         for (i, node) in self.nodes.iter().enumerate() {
-            for s in node.successors() {
-                if *s != INVALID_HANDLE {
-                    writeln!(f, "{i} -> {s}\n")?;
-                }
+            let succ = node.successors();
+
+            if succ.len() == 1 {
+                writeln!(f, "{i} -> {}\n", succ[0])?;
+            } else if succ.len() == 2 {
+                writeln!(f, "{i} -> {} [label=\"true\"] \n", succ[0])?;
+                writeln!(f, "{i} -> {} [label=\"false\"]\n", succ[1])?;
             }
         }
 

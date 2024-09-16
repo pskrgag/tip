@@ -2,6 +2,8 @@ use crate::frontend::*;
 use anyhow::Result;
 
 pub mod typing;
+pub mod dataflow;
+pub mod map;
 
 pub trait AstAnalisys {
     fn run(&mut self, f: &mut Ast) -> Result<()>;
@@ -12,6 +14,14 @@ pub fn analyze_ast(ast: &mut Ast) -> Result<()> {
 
     for mut i in passes {
         i.run(ast)?;
+    }
+
+    Ok(())
+}
+
+pub fn per_fn_dataflow(ast: &mut Ast) -> Result<()> {
+    for i in ast.functions_mut() {
+        dataflow::dataflow(i)?;
     }
 
     Ok(())

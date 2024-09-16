@@ -1,0 +1,13 @@
+// TEST-INTERPRET: 1010
+
+test(x) {
+   *x = 1010;
+}
+
+main() {
+   var n;
+
+   n = 10;
+   test(&n);
+   return n;
+}

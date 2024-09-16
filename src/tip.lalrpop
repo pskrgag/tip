@@ -173,7 +173,7 @@ Atom: ExpressionKind = {
     <Identifier> => ExpressionKind::Indentifier(<>),
     <Num> => ExpressionKind::Number(<>),
     "+" <Num> => ExpressionKind::Number(<>),
-    "-" <Num> => ExpressionKind::Number(<>),
+    "-" <Num> => ExpressionKind::Number(-<>),
     "null" => ExpressionKind::Null,
     "{" <RecordList> "}" => ExpressionKind::Record(<>),
 }
