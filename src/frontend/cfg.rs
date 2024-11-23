@@ -11,12 +11,6 @@ pub struct CfgNode<'ast> {
     succ: [CfgNodeHandle; 2],
 }
 
-#[derive(Debug)]
-pub struct CfgPostOrderIter<'ast> {
-    stack: Vec<(CfgNodeHandle, bool)>,
-    cfg: &'ast Cfg<'ast>,
-}
-
 impl<'ast> CfgNode<'ast> {
     pub fn new() -> Self {
         Self {
@@ -91,10 +85,6 @@ impl<'ast> Cfg<'ast> {
 
     pub fn function(&self) -> &Function {
         self.f
-    }
-
-    pub fn po_iter(&self) -> CfgPostOrderIter {
-        CfgPostOrderIter::new(self)
     }
 
     pub fn node(&self, h: CfgNodeHandle) -> &CfgNode {
@@ -198,48 +188,6 @@ impl<'ast> Cfg<'ast> {
             self.new_bb();
             self.proccess_statement(body);
         }
-    }
-}
-
-impl<'ast> CfgPostOrderIter<'ast> {
-    pub fn new(cfg: &'ast Cfg) -> Self {
-        let mut s = Self {
-            cfg,
-            stack: Vec::from([(0, false)]),
-        };
-
-        s.expand_top();
-        s
-    }
-
-    fn expand_top(&mut self) {
-        while let Some(node) = self.stack.last_mut() {
-            if node.1 {
-                break;
-            }
-
-            node.1 = true;
-            let node = self.cfg.node(node.0);
-            let succ = node.successors();
-
-            if succ.len() > 0 {
-                self.stack.push((succ[0], false));
-            }
-
-            if succ.len() > 1 {
-                self.stack.push((succ[1], false));
-            }
-        }
-
-        self.stack.reverse();
-    }
-}
-
-impl<'a> Iterator for CfgPostOrderIter<'a> {
-    type Item = CfgNodeHandle;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.stack.pop().map(|x| x.0)
     }
 }
 

@@ -1,7 +1,7 @@
-use super::lattice::{Join, Lattice, Meet};
+use super::lattice::{Join, Lattice};
 use crate::analisys::dataflow::*;
 use crate::frontend::cfg::{Cfg, CfgNode, CfgNodeHandle};
-use crate::frontend::{Indentifier, StatementKind};
+use crate::frontend::StatementKind;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -25,10 +25,7 @@ impl<'ast, A: DataFlowAnalisys> FPSolver<'ast, A> {
         let stmt = bb.stmts();
 
         for e in stmt {
-            if matches!(e.kind, StatementKind::If(_)) {
-            } else {
-                self.solver.proccess_statement(state, e);
-            }
+            self.solver.proccess_statement(state, e);
         }
     }
 
@@ -37,22 +34,25 @@ impl<'ast, A: DataFlowAnalisys> FPSolver<'ast, A> {
         <A as crate::analisys::dataflow::AnalisysDomain>::Domain: std::fmt::Debug,
     {
         let mut wq = VecDeque::new();
-        let mut vis = vec![false; self.cfg.size()];
         let mut state = A::Domain::bottom();
 
         wq.push_back(self.cfg.start());
 
         while let Some(handle) = wq.pop_front() {
-            if vis[handle] == true {
-                continue;
-            }
-
             let current = self.cfg.node(handle);
             let succ = current.successors();
             let pred = current.predecessors();
 
             for i in pred {
-                state.join(self.map.get(i).unwrap());
+                state.join(self.map.get(i).expect("Dominance property is broken"));
+            }
+
+            if let Some(old_state) = self.map.get(&handle) {
+                if *old_state == state {
+                    // Here we got into loop and already proccesed it. Just don't add
+                    // successors one more time to working list
+                    continue;
+                }
             }
 
             self.proccess_bb(current, &mut state);
@@ -61,8 +61,6 @@ impl<'ast, A: DataFlowAnalisys> FPSolver<'ast, A> {
             for i in succ {
                 wq.push_back(*i);
             }
-
-            vis[handle] = true;
         }
 
         state.dump();

@@ -1,8 +1,5 @@
 use super::*;
 use crate::analisys::map::Enviroment;
-use crate::frontend::Indentifier;
-use crate::solvers::lattice::*;
-use std::collections::HashMap;
 
 #[derive(Clone, Debug, Copy, Eq, PartialEq)]
 pub enum SignAnalisysDomain {
@@ -41,5 +38,10 @@ impl ValueAnalisys for ZeroAnalisys {
             FlatSet::Element(SignAnalisysDomain::Positive)
         }
     }
-}
 
+    fn proccess_binary(&mut self, lhs: Self::Value, op: BinaryOp, rhs: Self::Value) -> Self::Value {
+        match op {
+            _ => todo!(),
+        }
+    }
+}

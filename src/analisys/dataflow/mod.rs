@@ -20,14 +20,14 @@ pub trait DomainDump {
 }
 
 pub trait AnalisysDomain {
-    type Domain: Lattice + Clone + DomainDump;
+    type Domain: Lattice + Clone + DomainDump + Eq;
 
     const NAME: &'static str;
     const DIRECTION: AnalisysDirection = AnalisysDirection::Forward;
 }
 
 pub trait DataFlowAnalisys: AnalisysDomain {
-    fn proccess_statement(&mut self, state: &mut Self::Domain, s: &Statement);
+    fn proccess_statement(&mut self, _state: &mut Self::Domain, _s: &Statement) {}
 }
 
 // === Value analisys ===
@@ -38,7 +38,16 @@ pub trait ValueAnalisys {
 
     fn env(&mut self) -> &mut Enviroment<Self::Value>;
 
-    fn proccess_rvalue(&mut self, val: i64) -> Self::Value {
+    fn proccess_rvalue(&mut self, _val: i64) -> Self::Value {
+        Self::Value::top()
+    }
+
+    fn proccess_binary(
+        &mut self,
+        _lhs: Self::Value,
+        _op: BinaryOp,
+        _rhs: Self::Value,
+    ) -> Self::Value {
         Self::Value::top()
     }
 
@@ -50,11 +59,11 @@ pub trait ValueAnalisys {
 
                 match env.val(loc) {
                     ValueOrLoc::Value(x) => x,
-                    _ => panic!(""),
+                    _ => panic!("todo"),
                 }
             }
             ExpressionKind::Number(x) => self.proccess_rvalue(*x),
-            ExpressionKind::Call(x) => Self::Value::top(),
+            ExpressionKind::Call(_) | ExpressionKind::Input => Self::Value::top(),
             _ => panic!("{e}"),
         }
     }
@@ -110,7 +119,9 @@ impl<T: ValueAnalisys> DataFlowAnalisys for ValueAnalisysWrapper<T> {
     }
 }
 
-impl<I: std::hash::Hash + Eq + Clone + std::fmt::Debug, T: Lattice + std::fmt::Debug> DomainDump for HashMap<I, T> {
+impl<I: std::hash::Hash + Eq + Clone + std::fmt::Debug, T: Lattice + std::fmt::Debug> DomainDump
+    for HashMap<I, T>
+{
     fn dump(&self) {
         for (id, val) in self {
             println!("{:?}: {:?}", id, val);
@@ -120,7 +131,7 @@ impl<I: std::hash::Hash + Eq + Clone + std::fmt::Debug, T: Lattice + std::fmt::D
 
 pub fn dataflow(func: &mut Function) -> Result<()> {
     let cfg = Cfg::new(func);
-    let mut f = ValueAnalisysWrapper(zero::ZeroAnalisys::new());
+    let f = ValueAnalisysWrapper(zero::ZeroAnalisys::new());
     let fp = FPSolver::new(&cfg, f);
 
     fp.analyze()
