@@ -24,7 +24,9 @@ static mut CURRENT_FILE: Option<SourceFile> = None;
 
 pub fn get_current_source() -> &'static SourceFile {
     #[allow(static_mut_refs)]
-    unsafe { CURRENT_FILE.as_ref().unwrap() }
+    unsafe {
+        CURRENT_FILE.as_ref().unwrap()
+    }
 }
 
 pub fn set_current_source(f: SourceFile) {

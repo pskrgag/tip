@@ -52,11 +52,7 @@ macro_rules! failable_match {
         if matches!($val, $expected) {
             true
         } else {
-            report_error(
-                $node.loc,
-                format!("{} -- {:?}", $expected_tp, $val),
-                "",
-            );
+            report_error($node.loc, format!("{} -- {:?}", $expected_tp, $val), "");
             anyhow::bail!("")
         }
     };

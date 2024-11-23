@@ -48,24 +48,20 @@ fn proccess_source(path: &String) -> Result<RunSetup> {
     let error_regex =
         Regex::new(r".*\/\/ expected-error\{\{(.*)\}\}").expect("Failed to compile regex");
     let no_err = Regex::new(r".*\/\/ expect-no-errors").expect("Failed to compile regex");
+    let interpret = Regex::new(r"// *TEST-INTERPRET: *(\d+)").unwrap();
+    let skip = Regex::new(r"// *SKIP-FILE-CHECK").unwrap();
     let mut errors = HashMap::new();
     let mut no_errs = false;
 
     for (i, line) in sourse.split('\n').enumerate() {
         if i == 0 {
-            {
-                let regex = Regex::new(r"// *TEST-INTERPRET: *(\d+)").unwrap();
-                if let Some(caps) = regex.captures(line) {
-                    let result = caps[1].parse::<i32>().unwrap();
+            if let Some(caps) = interpret.captures(line) {
+                let result = caps[1].parse::<i32>().unwrap();
 
-                    return Ok(RunSetup::Interpret(result));
-                }
+                return Ok(RunSetup::Interpret(result));
             }
-            {
-                let regex = Regex::new(r"// *SKIP-FILE-CHECK").unwrap();
-                if regex.captures(line).is_some() {
-                    return Ok(RunSetup::Skip);
-                }
+            if skip.captures(line).is_some() {
+                return Ok(RunSetup::Skip);
             }
         }
 

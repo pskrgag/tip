@@ -29,7 +29,7 @@ impl<T: Clone> Enviroment<T> {
     }
 
     pub fn get_loc(&mut self, id: &Indentifier, def: T) -> Location {
-        if let Some(e) = self.id_loc.get(&id) {
+        if let Some(e) = self.id_loc.get(id) {
             *e
         } else {
             let loc = self.loc;

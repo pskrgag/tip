@@ -39,7 +39,12 @@ impl ValueAnalisys for ZeroAnalisys {
         }
     }
 
-    fn proccess_binary(&mut self, _lhs: Self::Value, op: BinaryOp, _rhs: Self::Value) -> Self::Value {
+    fn proccess_binary(
+        &mut self,
+        _lhs: Self::Value,
+        op: BinaryOp,
+        _rhs: Self::Value,
+    ) -> Self::Value {
         match op {
             _ => todo!(),
         }

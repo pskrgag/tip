@@ -191,7 +191,7 @@ impl<'ast> Cfg<'ast> {
     }
 }
 
-impl<'ast> Debug for CfgNode<'ast> {
+impl Debug for CfgNode<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         for i in &self.stmt {
             write!(f, "{:?}\\n", i)?;
@@ -201,7 +201,7 @@ impl<'ast> Debug for CfgNode<'ast> {
     }
 }
 
-impl<'ast> Debug for Cfg<'ast> {
+impl Debug for Cfg<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         writeln!(f, "digraph Cfg {{")?;
 

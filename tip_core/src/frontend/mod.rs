@@ -211,7 +211,7 @@ impl Function {
         &self.locals
     }
 
-    pub fn last_ret(&self) -> Option<&Box<Statement>> {
+    pub fn last_ret(&self) -> Option<&Statement> {
         let b = self.body.as_ref()?;
 
         let comp = b.kind.as_compound().unwrap();
@@ -219,6 +219,7 @@ impl Function {
         comp.iter()
             .rev()
             .find(|x| matches!(x.kind, StatementKind::Return(_)))
+            .map(|x| x.as_ref())
     }
 }
 

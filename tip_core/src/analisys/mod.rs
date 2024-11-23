@@ -1,9 +1,9 @@
 use crate::frontend::*;
 use anyhow::Result;
 
-pub mod typing;
 pub mod dataflow;
 pub mod map;
+pub mod typing;
 
 pub trait AstAnalisys {
     fn run(&mut self, f: &mut Ast) -> Result<()>;

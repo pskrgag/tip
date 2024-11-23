@@ -21,7 +21,7 @@ impl<'a> IndentGuard<'a> {
     }
 }
 
-impl<'a> Drop for IndentGuard<'a> {
+impl Drop for IndentGuard<'_> {
     fn drop(&mut self) {
         self.vis.indent.fetch_sub(1, Ordering::Relaxed);
     }
