@@ -1,3 +1,5 @@
+// SKIP-FILE-CHECK
+
 f(x) {
    return 10;
 }

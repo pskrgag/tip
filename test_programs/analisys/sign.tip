@@ -1,3 +1,5 @@
+// SKIP-FILE-CHECK
+
 main() {
     var a,b;
 

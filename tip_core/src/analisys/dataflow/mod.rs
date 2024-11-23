@@ -63,8 +63,7 @@ pub trait ValueAnalisys {
                 }
             }
             ExpressionKind::Number(x) => self.proccess_rvalue(*x),
-            ExpressionKind::Call(_) | ExpressionKind::Input => Self::Value::top(),
-            _ => panic!("{e}"),
+            _ => Self::Value::top(),
         }
     }
 

@@ -173,15 +173,40 @@ impl TypeAnalysis {
                 let t = match &call.call.kind {
                     ExpressionKind::Indentifier(x) => {
                         let var = crate::failable_opt!(
-                            self.env.find_glocal(x),
+                            self.env.find_local(x).or(self.env.find_glocal(x)),
                             call.call,
                             "Cannot find function {:?}",
                             x
                         );
-                        self.solver.get_value(var).unwrap()
+
+                        self.solver.get_value(var).unwrap_or(Type::Unbound(var))
                     }
                     _ => self.infer(call.call.as_ref())?,
                 };
+
+                if let Type::Unbound(t) = t {
+                    // Here we don't know type at calling moment. For example this
+                    // happens in case of higher-order functions like
+                    // apply(f) {
+                    //  var a;
+                    //   a = f(1234);
+                    //   return fun;
+                    // }
+                    //
+                    // So just infer type from args and go futher.
+                    let types = call
+                        .args
+                        .iter()
+                        .map(|x| self.infer(x).unwrap())
+                        .collect::<Vec<_>>();
+
+                    let ret = self.solver.add(None);
+                    self.solver
+                        .unify_var_val(t, Some(Type::Function(Box::new(Type::Unbound(ret)), types)))
+                        .expect("Cannot unify fresh type variable");
+
+                    return Ok(Type::Unbound(ret));
+                }
 
                 if t.is_poly() {
                     self.cp = Some(self.solver.clone());
@@ -299,6 +324,19 @@ impl TypeAnalysis {
                 Ok(())
             }
             (Type::Pointer(x1), Type::Pointer(x2)) => self.unify(x1, x2),
+            (Type::Function(ret1, args1), Type::Function(ret2, args2)) => {
+                self.unify(ret1, ret2)?;
+
+                if args1.len() == args2.len() {
+                    for (i, j) in std::iter::zip(args1, args2) {
+                        self.unify(i, j)?;
+                    }
+
+                    Ok(())
+                } else {
+                    bail!("")
+                }
+            }
             (t, t1) => {
                 if t == t1 {
                     Ok(())

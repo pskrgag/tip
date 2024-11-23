@@ -1,4 +1,7 @@
+// SKIP-FILE-CHECK
 // TEST-INTERPRET: 0
+
+// TODO: fix data-flow
 
 main() {
     var x,y;

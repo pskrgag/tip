@@ -1,4 +1,4 @@
-// TEST-INTERPRET: 1020
+// TEST-INTERPRET: 111
 
 fn(x) {
    *x = 1010101;
@@ -14,7 +14,7 @@ main() {
   z = &y;
 
   ret = fn(y);
-  *ret = 1020;
+  *ret = 111;
 
   return *ret;
 }

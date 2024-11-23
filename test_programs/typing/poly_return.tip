@@ -1,4 +1,4 @@
-// TEST-OK: typing
+// expect-no-errors
 
 f(x, y) {
     *x = y;

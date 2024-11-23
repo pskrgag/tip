@@ -1,4 +1,4 @@
-// TEST-OK: typing
+// expect-no-errors
 
 main() {
 	var x;

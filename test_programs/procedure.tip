@@ -1,7 +1,7 @@
-// TEST-INTERPRET: 1010
+// TEST-INTERPRET: 242
 
 test(x) {
-   *x = 1010;
+   *x = 242;
 }
 
 main() {

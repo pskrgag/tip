@@ -1,17 +1,7 @@
-[package]
-name = "tip"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+resolver = "2"
 
-[build-dependencies]
-lalrpop = "0.20.2"
-
-[dev-dependencies]
-regex = "*"
-
-[dependencies]
-clap = { version = "4.5.13", features = ["derive"] }
-lalrpop-util = { version = "0.20.2", features = ["lexer"] }
-colored = "2"
-anyhow = { version = "1.0" }
-enum-as-inner = "0.6.0"
+members = [
+	"file_check", "lit",
+	"tip_core",
+]

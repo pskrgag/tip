@@ -1,9 +1,7 @@
-// TEST-ERROR: typing
-
 main() {
     var n, r1;
 
     r1 = 10;
-    *r1 = 1;
+    *r1 = 1;   // expected-error{{Cannot derefence type Int}}
     return r1;
 }

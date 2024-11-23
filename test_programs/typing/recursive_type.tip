@@ -1,5 +1,6 @@
-// TODO: add this?
+// SKIP-FILE-CHECK
 
+// TODO: add this?
 f(f, n) {
    f(f, 10);
 }

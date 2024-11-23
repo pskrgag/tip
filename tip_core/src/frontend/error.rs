@@ -54,7 +54,7 @@ macro_rules! failable_match {
         } else {
             report_error(
                 $node.loc,
-                format!("Expected {}, but got {:?}", $expected_tp, $val),
+                format!("{} -- {:?}", $expected_tp, $val),
                 "",
             );
             anyhow::bail!("")

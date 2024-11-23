@@ -1,7 +1,6 @@
 use super::lattice::{Join, Lattice};
 use crate::analisys::dataflow::*;
 use crate::frontend::cfg::{Cfg, CfgNode, CfgNodeHandle};
-use crate::frontend::StatementKind;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::collections::VecDeque;

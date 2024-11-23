@@ -1,3 +1,5 @@
+// SKIP-FILE-CHECK
+
 fib(n){
     var f1,f2,i;
     var temp;
