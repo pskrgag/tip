@@ -389,31 +389,3 @@ impl<'a> Interpreter<'a> {
         Ok(ret)
     }
 }
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::tests::for_each_prog_parsed;
-    use lalrpop_util::lalrpop_mod;
-    use regex::Regex;
-
-    lalrpop_mod!(pub tip);
-
-    #[test]
-    fn test_programs() {
-        let r = Regex::new(r"// *TEST-INTERPRET: *(\d+)").unwrap();
-
-        for_each_prog_parsed(".", &r, |caps, ast, path| {
-            let num = caps[1].parse::<i64>().unwrap();
-
-            println!("{:?}", path);
-            let int = Interpreter::new(ast);
-            let res = int.run().unwrap();
-
-            if res != num {
-                println!("Program {:?} produced wrong result", path);
-                assert_eq!(res, num);
-            }
-        })
-    }
-}

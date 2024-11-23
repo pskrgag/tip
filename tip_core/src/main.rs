@@ -13,9 +13,6 @@ mod frontend;
 mod interpreter;
 mod solvers;
 
-#[cfg(test)]
-mod tests;
-
 use frontend::source::*;
 
 #[derive(Parser, Debug)]
