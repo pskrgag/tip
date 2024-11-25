@@ -1,6 +1,11 @@
 tip := "./target/debug/tip"
 file_check := "./target/debug/file_check"
 
+test: tip-unit-test lit-test
+
+tip-unit-test:
+	cargo test -p tip
+
 build-tip:
 	cargo build -p tip
 
