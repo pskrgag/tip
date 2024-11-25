@@ -59,12 +59,6 @@ fn run() -> Result<()> {
             println!("Cannot proccess futher because of previous error");
             std::process::exit(-1)
         }
-
-        let res = analisys::per_fn_dataflow(&mut ast);
-        if res.is_err() {
-            println!("Cannot proccess futher because of previous error");
-            std::process::exit(-1)
-        }
     }
 
     if args.dump_ast {

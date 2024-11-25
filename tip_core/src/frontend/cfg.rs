@@ -75,9 +75,9 @@ impl<'ast> Cfg<'ast> {
         ret
     }
 
-    pub fn size(&self) -> usize {
-        self.nodes.len()
-    }
+    // pub fn size(&self) -> usize {
+    //     self.nodes.len()
+    // }
 
     pub fn start(&self) -> CfgNodeHandle {
         0
