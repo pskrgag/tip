@@ -66,6 +66,13 @@ macro_rules! bail_with_error {
     };
 }
 
+#[macro_export]
+macro_rules! report_error {
+    ($node:expr, $($arg:tt)*) => {
+        report_error($node.loc, format!($($arg)*), "");
+    };
+}
+
 const SOURCE_OFFSET: usize = 6;
 
 pub fn report_error<S: AsRef<str>>(wh: SourceLoc, reason: S, meta: &str) {

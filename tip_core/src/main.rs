@@ -70,7 +70,8 @@ fn run() -> Result<()> {
         let f = ast.function(name).unwrap();
         let cfg = frontend::cfg::Cfg::new(ast.function_by_index(f).unwrap());
 
-        std::fs::write("out.dot", format!("{:?}", cfg))?;
+        // println!("{:?}", cfg);
+        std::fs::write("out.dot", format!("{}", cfg))?;
     }
 
     let res = if args.interpret {

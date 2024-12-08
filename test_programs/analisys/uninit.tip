@@ -1,0 +1,5 @@
+main() {
+    var a,b;
+
+    return a; // expected-error{{Use of unitialized variable Indentifier(a)}}
+}

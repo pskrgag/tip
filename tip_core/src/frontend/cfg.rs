@@ -1,9 +1,10 @@
 use super::*;
-use std::fmt::{Debug, Formatter, Result};
+use std::fmt::{Debug, Display, Formatter, Result};
 
 pub type CfgNodeHandle = usize;
 const INVALID_HANDLE: usize = CfgNodeHandle::MAX;
 
+#[derive(Debug)]
 pub struct CfgNode<'ast> {
     stmt: Vec<&'ast Statement>,
 
@@ -59,6 +60,7 @@ impl<'ast> CfgNode<'ast> {
     }
 }
 
+#[derive(Debug)]
 pub struct Cfg<'ast> {
     nodes: Vec<CfgNode<'ast>>,
     f: &'ast Function,
@@ -75,16 +77,12 @@ impl<'ast> Cfg<'ast> {
         ret
     }
 
-    // pub fn size(&self) -> usize {
-    //     self.nodes.len()
-    // }
+    pub fn size(&self) -> usize {
+        self.nodes.len()
+    }
 
     pub fn start(&self) -> CfgNodeHandle {
         0
-    }
-
-    pub fn function(&self) -> &Function {
-        self.f
     }
 
     pub fn node(&self, h: CfgNodeHandle) -> &CfgNode {
@@ -96,7 +94,7 @@ impl<'ast> Cfg<'ast> {
         self.nodes.len() - 1
     }
 
-    fn current_bb(&mut self) -> CfgNodeHandle {
+    fn current_bb(&self) -> CfgNodeHandle {
         self.nodes.len() - 1
     }
 
@@ -114,6 +112,7 @@ impl<'ast> Cfg<'ast> {
 
         self.nodes[then_handle].push_pred(current_handle);
         self.nodes[current_handle].push_succ(then_handle);
+        let next = self.new_bb();
 
         // Handle else block
         if let Some(elsee) = iff.elsee.as_ref() {
@@ -122,13 +121,12 @@ impl<'ast> Cfg<'ast> {
 
             self.nodes[else_handle.unwrap()].push_pred(current_handle);
             self.nodes[current_handle].push_succ(else_handle.unwrap());
+        } else {
+            self.nodes[next].push_pred(current_handle);
+            self.nodes[current_handle].push_succ(next);
         }
 
-        // Update next bb
-        //
-        // NOTE: it's known to exist, since all functions must have a "return" Statement.
-        let next = self.new_bb();
-
+        // Figure out how to be if bb after if does not exists
         self.nodes[next].push_pred(then_handle);
         self.nodes[then_handle].push_succ(next);
 
@@ -179,7 +177,7 @@ impl<'ast> Cfg<'ast> {
                 self.push_to_last_bb(f);
                 self.handle_while(&wl.body);
             }
-            _ => panic!("Unexpected stmt {:?}", f),
+            StatementKind::Function(_) => panic!("There should not be function inside function"),
         }
     }
 
@@ -191,7 +189,7 @@ impl<'ast> Cfg<'ast> {
     }
 }
 
-impl Debug for CfgNode<'_> {
+impl Display for CfgNode<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         for i in &self.stmt {
             write!(f, "{:?}\\n", i)?;
@@ -201,7 +199,7 @@ impl Debug for CfgNode<'_> {
     }
 }
 
-impl Debug for Cfg<'_> {
+impl Display for Cfg<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         writeln!(f, "digraph Cfg {{")?;
 

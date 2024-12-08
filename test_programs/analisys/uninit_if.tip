@@ -1,0 +1,11 @@
+main() {
+    var a,b;
+
+    a = 10;
+
+    if (a == 11) {
+       b = 10;
+    }
+
+    return b; // expected-error{{Use of unitialized variable Indentifier(b)}}
+}
