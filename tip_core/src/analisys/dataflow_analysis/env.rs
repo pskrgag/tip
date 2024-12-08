@@ -21,7 +21,7 @@ impl<T: Clone + MeetSemilattice> MeetSemilattice for Env<T> {
                 .map
                 .clone()
                 .into_iter()
-                .filter(|x| rhs.map.get(&x.0).is_some())
+                .filter(|x| rhs.map.contains_key(&x.0))
                 .map(|(key, val)| {
                     let new_val = val.meet(rhs.map.get(&key).unwrap());
                     (key, new_val)

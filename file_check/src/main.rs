@@ -74,9 +74,9 @@ fn proccess_source(path: &String) -> Result<RunSetup> {
         }
     }
 
-    if no_errs && errors.len() == 0 {
+    if no_errs && errors.is_empty() {
         Ok(RunSetup::Diagnostics(errors))
-    } else if errors.len() == 0 {
+    } else if errors.is_empty() {
         Err(std::io::Error::new(
             std::io::ErrorKind::NotFound,
             "No directives found. Add expect-no-errors",

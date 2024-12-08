@@ -12,7 +12,7 @@ impl Bitvec {
     pub fn new(bits: usize) -> Self {
         Self {
             bits,
-            data: vec![0; ((bits as usize + 7) & !7usize) >> 3],
+            data: vec![0; ((bits + 7) & !7usize) >> 3],
         }
     }
 
