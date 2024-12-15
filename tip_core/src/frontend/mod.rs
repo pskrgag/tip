@@ -148,6 +148,10 @@ impl TypedIndentifier {
         Self(s, None)
     }
 
+    pub fn r#type(&self) -> &Type {
+        self.1.as_ref().unwrap()
+    }
+
     pub fn change_type(&mut self, t: types::Type) {
         assert!(self.1.is_none());
 

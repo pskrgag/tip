@@ -3,3 +3,4 @@ pub mod dataflow;
 pub mod bitvec;
 pub mod lattice;
 pub mod uninit;
+pub mod unused;

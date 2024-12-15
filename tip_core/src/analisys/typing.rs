@@ -519,6 +519,10 @@ impl TypeAnalysis {
 }
 
 impl AstAnalisys for TypeAnalysis {
+    fn name(&self) -> &'static str {
+        "typing"
+    }
+
     fn run(&mut self, f: &mut Ast) -> Result<()> {
         for i in f.functions_mut() {
             self.proccess_function(i)?;

@@ -1,0 +1,24 @@
+// CMD: --run-pases=typing --run-pases=unused_expr
+
+foo(c) {
+    var a,b;
+
+    if (c) {
+       a = 20; // expected-error{{Expression has no effect}}
+    } else {
+       b = 30;
+    }
+
+    b = 10;
+
+    return b;
+}
+
+main() {
+    var a,b;
+
+    b = 10;
+    a = 10; // expected-error{{Expression has no effect}}
+
+    return b;
+}

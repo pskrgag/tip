@@ -1,3 +1,5 @@
+// CMD: --run-pases=uninit_vars
+
 main() {
     var a,b;
 

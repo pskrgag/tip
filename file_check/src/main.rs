@@ -17,24 +17,23 @@ struct Args {
 
 #[derive(Debug)]
 enum RunSetup {
-    Diagnostics(HashMap<usize, String>), // Maps line to error message
-    Interpret(i32),                      // Result code
-    Skip,                                // Don't do anything
+    Diagnostics(HashMap<usize, String>, String), // Maps line to error message + command line
+    Interpret(i32),                              // Result code
+    Skip,                                        // Don't do anything
 }
 
+#[derive(Debug)]
 struct RunResult {
     pub output: String,
     pub error_code: i32,
 }
 
 // Runs tip and collects stdout
-fn run_tip(tip: &String, prog: &String, args: Option<&[&str]>) -> Result<RunResult> {
+fn run_tip(tip: &String, prog: &String, args: &Vec<String>) -> Result<RunResult> {
     let mut cmd = Command::new(tip);
     let mut child = cmd.arg(prog).stdout(Stdio::piped());
 
-    if let Some(args) = args {
-        child = child.args(args);
-    }
+    child = child.args(args);
 
     let mut child = child.spawn()?;
     let error_code = child.wait()?.code().unwrap();
@@ -50,8 +49,10 @@ fn proccess_source(path: &String) -> Result<RunSetup> {
     let no_err = Regex::new(r".*\/\/ expect-no-errors").expect("Failed to compile regex");
     let interpret = Regex::new(r"// *TEST-INTERPRET: *(\d+)").unwrap();
     let skip = Regex::new(r"// *SKIP-FILE-CHECK").unwrap();
+    let cmd = Regex::new(r"// *CMD: (.*)").unwrap();
     let mut errors = HashMap::new();
     let mut no_errs = false;
+    let mut command_line = String::new();
 
     for (i, line) in sourse.split('\n').enumerate() {
         if i == 0 {
@@ -59,44 +60,48 @@ fn proccess_source(path: &String) -> Result<RunSetup> {
                 let result = caps[1].parse::<i32>().unwrap();
 
                 return Ok(RunSetup::Interpret(result));
-            }
-            if skip.captures(line).is_some() {
+            } else if skip.captures(line).is_some() {
                 return Ok(RunSetup::Skip);
+            } else if let Some(caps) = cmd.captures(line) {
+                command_line = caps[1].to_owned();
             }
         }
 
         if let Some(caps) = error_regex.captures(line) {
             errors.insert(i + 1, caps[1].to_owned().clone());
-        }
-
-        if no_err.captures(line).is_some() {
+        } else if no_err.captures(line).is_some() {
             no_errs = true;
         }
     }
 
     if no_errs && errors.is_empty() {
-        Ok(RunSetup::Diagnostics(errors))
+        Ok(RunSetup::Diagnostics(errors, command_line))
     } else if errors.is_empty() {
         Err(std::io::Error::new(
             std::io::ErrorKind::NotFound,
             "No directives found. Add expect-no-errors",
         ))
     } else {
-        Ok(RunSetup::Diagnostics(errors))
+        Ok(RunSetup::Diagnostics(errors, command_line))
     }
 }
 
-fn proccess_diagnostics(output: String, errors: &HashMap<usize, String>, source: String) -> bool {
+fn proccess_diagnostics(
+    output: String,
+    mut errors: HashMap<usize, String>,
+    source: String,
+) -> bool {
     let regex = Regex::new(format!(r"^{source}:(\d+):(\d+) : (.*)").as_str())
         .expect("Failed to compile regex");
     let mut success = true;
+    let mut seen = HashMap::new();
 
     for i in output.split('\n') {
         if let Some(caps) = regex.captures(i) {
             let line = caps[1].parse::<usize>().unwrap();
             let error = &caps[3];
 
-            if let Some(expected_err) = errors.get(&line) {
+            if let Some(expected_err) = errors.remove(&line) {
                 let err_regex = format!("^{expected_err}");
 
                 // Stupid way to add escapes before ( and )
@@ -113,14 +118,26 @@ fn proccess_diagnostics(output: String, errors: &HashMap<usize, String>, source:
                     eprintln!("Unexpected error:\n'{error}', expected\n'{expected_err}'");
                     success = false;
                 }
+
+                seen.insert(line, error.to_owned());
             } else {
-                eprintln!("Unspecified error '{error}'");
-                success = false;
+                // TODO: This is a hack for diagnostics printed more than once.
+                // Maybe one day i will fix it.
+                if let Some(seen) = seen.get(&line) {
+                    if seen != error {
+                        eprintln!("Unspecified error '{error}' on line {line}");
+                        success = false;
+                    }
+                }
             }
         }
     }
 
-    success
+    for (line, error) in &errors {
+        eprintln!("Unseen error {error} on line {line}");
+    }
+
+    success && errors.len() == 0
 }
 
 fn proccess_iterpret(expected_code: i32, code: i32) -> bool {
@@ -133,10 +150,10 @@ fn proccess_iterpret(expected_code: i32, code: i32) -> bool {
     res
 }
 
-fn run_test(result: RunResult, setup: &RunSetup, source: String) -> bool {
+fn run_test(result: RunResult, setup: RunSetup, source: String) -> bool {
     match setup {
-        RunSetup::Diagnostics(x) => proccess_diagnostics(result.output, x, source),
-        RunSetup::Interpret(x) => proccess_iterpret(*x, result.error_code),
+        RunSetup::Diagnostics(diag, _) => proccess_diagnostics(result.output, diag, source),
+        RunSetup::Interpret(x) => proccess_iterpret(x, result.error_code),
         _ => panic!("Should not happen"),
     }
 }
@@ -146,13 +163,19 @@ fn main() -> Result<()> {
 
     let run_setup = proccess_source(&args.prog)?;
     let extra_args = match run_setup {
-        RunSetup::Diagnostics(_) => None,
-        RunSetup::Interpret(_) => Some(["-i"].as_slice()),
+        RunSetup::Diagnostics(_, ref args) => {
+            if !args.is_empty() {
+                args.split(' ').map(|x| x.to_owned()).collect()
+            } else {
+                vec![]
+            }
+        }
+        RunSetup::Interpret(_) => vec!["-i".to_owned()],
         RunSetup::Skip => std::process::exit(-2),
     };
 
-    let out = run_tip(&args.tip_path, &args.prog, extra_args)?;
-    if run_test(out, &run_setup, args.prog) {
+    let out = run_tip(&args.tip_path, &args.prog, &extra_args)?;
+    if run_test(out, run_setup, args.prog) {
         Ok(())
     } else {
         Err(std::io::Error::new(std::io::ErrorKind::NotFound, ""))

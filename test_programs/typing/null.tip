@@ -1,3 +1,4 @@
+// CMD: --run-pases=typing
 // expect-no-errors
 
 main() {

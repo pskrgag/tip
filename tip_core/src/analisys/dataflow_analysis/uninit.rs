@@ -10,10 +10,10 @@ pub struct UninitAnalisys;
 impl DataFlow for UninitAnalisys {
     type Domain = NamedBitvec;
 
-    const NAME: &'static str = "Uninit variables";
+    const NAME: &'static str = "uninit_vars";
     const DIRECTION: FlowDirection = FlowDirection::Forward;
 
-    fn init(&self, f: &Function) -> Self::Domain {
+    fn init(&mut self, f: &Function) -> Self::Domain {
         let mut locals = f
             .locals()
             .iter()

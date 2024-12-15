@@ -77,12 +77,16 @@ impl<'ast> Cfg<'ast> {
         ret
     }
 
-    pub fn size(&self) -> usize {
-        self.nodes.len()
-    }
+    // pub fn size(&self) -> usize {
+    //     self.nodes.len()
+    // }
 
     pub fn start(&self) -> CfgNodeHandle {
         0
+    }
+
+    pub fn last(&self) -> CfgNodeHandle {
+        self.nodes.len() - 1
     }
 
     pub fn node(&self, h: CfgNodeHandle) -> &CfgNode {
@@ -102,6 +106,11 @@ impl<'ast> Cfg<'ast> {
         self.nodes.last_mut().unwrap().push(stmt);
     }
 
+    fn link_bbs(&mut self, from: CfgNodeHandle, to: CfgNodeHandle) {
+        self.nodes[from].push_succ(to);
+        self.nodes[to].push_pred(from);
+    }
+
     fn handle_if(&mut self, iff: &'ast If) {
         let mut else_handle = None;
         let current_handle = self.current_bb();
@@ -110,29 +119,25 @@ impl<'ast> Cfg<'ast> {
         let then_handle = self.new_bb();
         self.proccess_statement(iff.then.as_ref());
 
-        self.nodes[then_handle].push_pred(current_handle);
-        self.nodes[current_handle].push_succ(then_handle);
-        let next = self.new_bb();
+        self.link_bbs(current_handle, then_handle);
 
         // Handle else block
         if let Some(elsee) = iff.elsee.as_ref() {
             else_handle = Some(self.new_bb());
             self.proccess_statement(elsee);
 
-            self.nodes[else_handle.unwrap()].push_pred(current_handle);
-            self.nodes[current_handle].push_succ(else_handle.unwrap());
-        } else {
-            self.nodes[next].push_pred(current_handle);
-            self.nodes[current_handle].push_succ(next);
+            self.link_bbs(current_handle, else_handle.unwrap());
         }
 
-        // Figure out how to be if bb after if does not exists
-        self.nodes[next].push_pred(then_handle);
-        self.nodes[then_handle].push_succ(next);
+        let next = self.new_bb();
+
+        // TODO: Figure out how to be if bb after if does not exists
+        self.link_bbs(then_handle, next);
 
         if let Some(else_handle) = else_handle {
-            self.nodes[next].push_pred(else_handle);
-            self.nodes[else_handle].push_succ(next);
+            self.link_bbs(else_handle, next);
+        } else {
+            self.link_bbs(current_handle, next);
         }
     }
 

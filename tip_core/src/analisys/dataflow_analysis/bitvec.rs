@@ -2,7 +2,7 @@ use super::lattice::*;
 use crate::frontend::Indentifier;
 use std::collections::HashMap;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Default)]
 pub struct Bitvec {
     data: Vec<u64>,
     bits: usize,
@@ -59,7 +59,7 @@ impl MeetSemilattice for Bitvec {
 
 impl Lattice for Bitvec {}
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Default)]
 pub struct NamedBitvec {
     vec: Bitvec,
     map: HashMap<Indentifier, usize>,

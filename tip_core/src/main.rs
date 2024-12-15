@@ -33,9 +33,13 @@ struct Args {
     #[arg(long, value_name = "FUNCTION NAME")]
     dump_cfg: Option<String>,
 
-    /// Skip analisys pass
+    /// Skip analisys passes
     #[arg(short, long)]
     skip_analisys: bool,
+
+    /// List of passes to run
+    #[arg(short, long)]
+    run_pases: Option<Vec<String>>,
 }
 
 fn main() {
@@ -54,7 +58,7 @@ fn run() -> Result<()> {
         .unwrap();
 
     if !args.skip_analisys {
-        let res = analisys::analyze_ast(&mut ast);
+        let res = analisys::analyze_ast(&mut ast, args.run_pases);
         if res.is_err() {
             println!("Cannot proccess futher because of previous error");
             std::process::exit(-1)
