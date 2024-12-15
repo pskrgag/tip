@@ -39,9 +39,8 @@ pub trait AstVisitor {
     fn visit_binary(&self, exp: &Expression, ctx: Self::Context) -> Self::Context {
         let bin = exp.kind.as_binary().unwrap();
         let ctx = self.visit_expression(&bin.rhs, ctx);
-        let ctx = self.visit_expression(&bin.lhs, ctx);
 
-        ctx
+        self.visit_expression(&bin.lhs, ctx)
     }
 
     fn visit_alloc(&self, exp: &Expression, ctx: Self::Context) -> Self::Context {

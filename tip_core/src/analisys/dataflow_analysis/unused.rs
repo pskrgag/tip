@@ -69,9 +69,7 @@ impl AstVisitor for UnusedVars {
     fn visit_assign(&self, assign: &Assign, ctx: Self::Context) -> Self::Context {
         match &assign.lhs.kind {
             ExpressionKind::Indentifier(id) => {
-                println!("{:?} {:?}", id, ctx.get(&id));
-
-                if let Some(set) = ctx.get(&id) {
+                if let Some(set) = ctx.get(id) {
                     // Assigned variable is dependant
                     if set {
                         DependantMarker {}.visit_expression(&assign.rhs, ctx)

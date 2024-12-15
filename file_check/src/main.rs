@@ -137,7 +137,7 @@ fn proccess_diagnostics(
         eprintln!("Unseen error {error} on line {line}");
     }
 
-    success && errors.len() == 0
+    success && errors.is_empty()
 }
 
 fn proccess_iterpret(expected_code: i32, code: i32) -> bool {

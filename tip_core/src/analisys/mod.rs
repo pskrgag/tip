@@ -23,7 +23,7 @@ pub fn analyze_ast(ast: &mut Ast, to_run: Option<Vec<String>>) -> Result<()> {
 
     for mut i in passes {
         if let Some(ref to_run) = to_run {
-            if to_run.iter().find(|x| *x == i.name()).is_some() {
+            if to_run.iter().any(|x| *x == i.name()) {
                 i.run(ast)?;
             }
         } else {
