@@ -6,7 +6,7 @@ use crate::frontend::*;
 use std::collections::HashMap;
 
 enum Kind {
-    Var,
+    // Var,
     Pointer,
 }
 
@@ -66,7 +66,7 @@ impl DataFlow for UnusedVars {
 impl AstVisitor for UnusedVars {
     type Context = <Self as DataFlow>::Domain;
 
-    fn visit_assign(&self, assign: &Assign, ctx: Self::Context) -> Self::Context {
+    fn visit_assign(&self, assign: &Assign, mut ctx: Self::Context) -> Self::Context {
         match &assign.lhs.kind {
             ExpressionKind::Indentifier(id) => {
                 if let Some(set) = ctx.get(id) {
@@ -75,6 +75,8 @@ impl AstVisitor for UnusedVars {
                         DependantMarker {}.visit_expression(&assign.rhs, ctx)
                     } else {
                         crate::report_error!(assign.lhs, "Expression has no effect");
+                        // Mark as used to prevent too much diagnostics
+                        ctx.set(id);
                         ctx
                     }
                 } else {
@@ -82,6 +84,20 @@ impl AstVisitor for UnusedVars {
                     ctx
                 }
             }
+            ExpressionKind::Unary(unary) => match unary.as_ref() {
+                Unary::Deref(e) => match &e.kind {
+                    // Writing to out param
+                    ExpressionKind::Indentifier(id) => {
+                        if self.depended_vars.get(&id).is_some() {
+                            DependantMarker {}.visit_expression(&assign.rhs, ctx)
+                        } else {
+                            ctx
+                        }
+                    }
+                    _ => ctx,
+                },
+                _ => panic!("Uh uh ast goes wrong..."),
+            },
             _ => ctx,
         }
     }

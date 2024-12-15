@@ -1,5 +1,31 @@
 // CMD: --run-pases=typing --run-pases=unused_expr
 
+out_param(out) {
+   var a,c;
+
+   a = 10;
+   c = 20; // expected-error{{Expression has no effect}}
+
+   *out = a;
+}
+
+bar(c) {
+   var a,c,d,e,b;
+
+   b = 10;
+
+   a = 10;
+   c = 30;
+   d = 40;
+   e = 50;        // expected-error{{Expression has no effect}}
+
+   a = d + a;
+   a = c + e + a; // expected-error{{Expression has no effect}}
+   d = d + e + d; // expected-error{{Expression has no effect}}
+
+   return b;
+}
+
 foo(c) {
     var a,b;
 
